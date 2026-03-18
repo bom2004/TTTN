@@ -6,6 +6,11 @@
 @theme {
   --color-primary: #2563EB;
   --color-secondary: #FBBF24;
+  --color-bookingBlue: #003580;
+  --color-bookingLightBlue: #006ce4;
+  --color-bookingYellow: #febb02;
+  --color-bookingText: #1a1a1a;
+  --color-bookingGray: #4b4b4b;
 }
 
 * {
