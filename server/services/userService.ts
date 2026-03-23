@@ -1,0 +1,89 @@
+import userModel from "../models/userModel.ts";
+import imagekit from "../config/imagekit.ts";
+import { hashPassword } from "./authService.ts";
+
+/**
+ * Service: Lấy toàn bộ người dùng và trả về dữ liệu an toàn
+ */
+export const getAllUsersSafe = async () => {
+    return await userModel.find({}).select("-password");
+};
+
+/**
+ * Service: Cập nhật vai trò người dùng
+ */
+export const updateUserRole = async (userId: string, role: string) => {
+    const updated = await userModel.findByIdAndUpdate(userId, { role }, { returnDocument: 'after' });
+    if (!updated) throw new Error("Không tìm thấy người dùng để cập nhật vai trò.");
+    return updated;
+};
+
+/**
+ * Service: Cập nhật mật khẩu cho người dùng (Thường dủng cho Admin)
+ */
+export const updatePasswordForUser = async (userId: string, newPass: string) => {
+    if (!newPass || newPass.length < 6) throw new Error("Mật khẩu phải ít nhất 6 ký tự");
+    
+    // Sử dụng chung hàm băm mật khẩu từ authService
+    const hashedPassword = await hashPassword(newPass);
+    await userModel.findByIdAndUpdate(userId, { password: hashedPassword });
+    return true;
+};
+
+/**
+ * Service: Xử lý lưu hoặc cập nhật thông tin người dùng (Bao gồm upload avatar)
+ */
+export const processSaveUser = async (id: string | undefined, data: any, file?: any) => {
+    const updateData = { ...data };
+
+    // 1. Nếu có mật khẩu mới, băm mật khẩu
+    if (updateData.password) {
+        updateData.password = await hashPassword(updateData.password);
+    }
+
+    // 2. Xử lý upload avatar lên ImageKit (nếu có)
+    if (file) {
+        const uploadRes = await imagekit.upload({
+            file: file.buffer.toString("base64"),
+            fileName: `user_avatar_${Date.now()}`,
+            folder: "/users",
+        });
+        updateData.avatar = uploadRes.url;
+    }
+
+    // 3. Chuẩn hóa dữ liệu số (balance, totalRecharged)
+    if (updateData.balance !== undefined) updateData.balance = Number(updateData.balance);
+    if (updateData.totalRecharged !== undefined) updateData.totalRecharged = Number(updateData.totalRecharged);
+
+    if (id) {
+        // Cập nhật người dùng cũ
+        // Kiểm tra email trùng lắp (ngoại trừ chính mình)
+        if (updateData.email) {
+            const exists = await userModel.findOne({ email: updateData.email, _id: { $ne: id } });
+            if (exists) throw new Error("Email này đã được sử dụng bởi một tài khoản khác.");
+        }
+
+        const updated = await userModel.findByIdAndUpdate(id, updateData, { returnDocument: 'after' });
+        if (!updated) throw new Error("Không tìm thấy người dùng để cập nhật.");
+        return updated;
+    } else {
+        // Tạo người dùng mới
+        if (!updateData.email || !updateData.password) throw new Error("Vui lòng cung cấp đầy đủ Email và Mật khẩu.");
+        
+        const exists = await userModel.findOne({ email: updateData.email });
+        if (exists) throw new Error("Email này đã được đăng ký.");
+
+        const newUser = new userModel(updateData);
+        await newUser.save();
+        return newUser;
+    }
+};
+
+/**
+ * Service: Xóa người dùng
+ */
+export const removeUserById = async (userId: string) => {
+    const deleted = await userModel.findByIdAndDelete(userId);
+    if (!deleted) throw new Error("Người dùng không tồn tại hoặc đã bị xóa.");
+    return deleted;
+};
