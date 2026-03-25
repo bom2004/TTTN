@@ -52,7 +52,7 @@ export const fetchRoomTypes = async (isAdmin: boolean) => {
  * Service: Xóa loại phòng
  */
 export const removeRoomType = async (id: string) => {
-    const deleted = await roomTypeModel.findByIdAndDelete(id);
+    const deleted = await roomTypeModel.findByIdAndDelete(id); //findByIdAndDelete(id) tìm phòng có id khớp với id truyền vào
     if (!deleted) throw new Error("Không tìm thấy loại phòng để xóa.");
     return deleted;
 };

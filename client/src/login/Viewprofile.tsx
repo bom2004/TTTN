@@ -11,7 +11,7 @@ const ViewProfile: React.FC = () => {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(false);
-    
+
     // Form states
     const [phone, setPhone] = useState<string>('');
     const [fullName, setFullName] = useState<string>('');
@@ -32,7 +32,6 @@ const ViewProfile: React.FC = () => {
     };
 
     useEffect(() => {
-
         const storedUser = localStorage.getItem('userData');
         if (storedUser) {
             const parsedUser: UserData = JSON.parse(storedUser);
@@ -51,7 +50,7 @@ const ViewProfile: React.FC = () => {
             return;
         }
         try {
-            const response = await axios.post(`${backendUrl}/api/login/send-otp`, { email, checkExist: true });
+            const response = await axios.post(`${backendUrl}/api/auth/send-otp`, { email, checkExist: true });
             if (response.data.success) {
                 toast.success(response.data.message);
                 setShowOtpInput(true);
@@ -59,13 +58,13 @@ const ViewProfile: React.FC = () => {
                 toast.error(response.data.message);
             }
         } catch (error: any) {
-             toast.error(error.response?.data?.message || "Lỗi gửi OTP");
+            toast.error(error.response?.data?.message || "Lỗi gửi OTP");
         }
     };
 
     const handleUpdate = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
-        
+
         if (newPassword && newPassword !== confirmNewPassword) {
             toast.error("Mật khẩu mới không khớp!");
             return;
@@ -83,7 +82,7 @@ const ViewProfile: React.FC = () => {
             if (email !== userData.email) {
                 formData.append('otp', otp);
             }
-            
+
             if (oldPassword && newPassword) {
                 formData.append('oldPassword', oldPassword);
                 formData.append('newPassword', newPassword);
@@ -95,7 +94,7 @@ const ViewProfile: React.FC = () => {
             const response = await axios.post<ApiResponse<UserData>>(`${backendUrl}/api/user/update-profile`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            
+
             if (response.data.success && response.data.userData) {
                 toast.success(response.data.message);
                 const updatedUser: UserData = { ...userData, ...response.data.userData };
@@ -106,6 +105,8 @@ const ViewProfile: React.FC = () => {
                 setNewPassword('');
                 setConfirmNewPassword('');
                 setAvatarFile(null);
+                setShowOtpInput(false);
+                setOtp('');
             } else {
                 toast.error(response.data.message);
             }
@@ -119,32 +120,40 @@ const ViewProfile: React.FC = () => {
     if (!userData) return null;
 
     return (
-        <div className="bg-[#f5f5f5] font-sans antialiased min-h-screen py-16 px-4">
-            <main className="w-full max-w-4xl mx-auto flex flex-col md:flex-row gap-8">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-50 py-12 px-4">
+            {/* Animated Wave Background */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-blue-200/30 to-transparent"></div>
+                <svg className="absolute bottom-0 left-0 w-full h-48" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
+                    <path fill="rgba(59, 130, 246, 0.1)" fillOpacity="1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+                </svg>
+            </div>
+
+            <main className="w-full max-w-6xl mx-auto relative z-10 flex flex-col lg:flex-row gap-8">
                 {/* Left Side: Basic Info & Avatar */}
-                <aside className="w-full md:w-80 shrink-0">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="bg-[#003580] h-32 relative">
+                <aside className="w-full lg:w-80 shrink-0">
+                    <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl shadow-blue-200/50 border border-blue-100 overflow-hidden sticky top-8">
+                        <div className="bg-gradient-to-r from-blue-600 to-cyan-600 h-32 relative">
                             <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
                                 <div className="relative group">
                                     {(preview || userData.avatar) ? (
-                                        <img 
-                                            src={preview || userData.avatar} 
-                                            alt="profile" 
-                                            className="h-24 w-24 rounded-full border-4 border-white shadow-md mx-auto object-cover"
+                                        <img
+                                            src={preview || userData.avatar}
+                                            alt="profile"
+                                            className="h-24 w-24 rounded-full border-4 border-white shadow-lg mx-auto object-cover"
                                         />
                                     ) : (
-                                        <div className="h-24 w-24 rounded-full border-4 border-white shadow-md mx-auto flex items-center justify-center bg-bookingLightBlue text-white text-3xl font-black">
+                                        <div className="h-24 w-24 rounded-full border-4 border-white shadow-lg mx-auto flex items-center justify-center bg-gradient-to-br from-blue-500 to-cyan-500 text-white text-3xl font-bold">
                                             {userData.full_name.charAt(0).toUpperCase()}
                                         </div>
                                     )}
                                     {isEditing && (
-                                        <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
                                             <span className="material-symbols-outlined text-white text-2xl">photo_camera</span>
-                                            <input 
-                                                type="file" 
-                                                id="avatar-upload" 
-                                                className="hidden" 
+                                            <input
+                                                type="file"
+                                                id="avatar-upload"
+                                                className="hidden"
                                                 accept="image/*"
                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                                     const file = e.target.files?.[0];
@@ -160,30 +169,31 @@ const ViewProfile: React.FC = () => {
                             </div>
                         </div>
                         <div className="pt-16 pb-8 px-6 text-center">
-                            <h1 className="text-xl font-black text-gray-900 mb-1">{userData.full_name}</h1>
-                            <p className="text-xs text-bookingBlue font-black uppercase tracking-widest">
-                                {userData.role === 'hotelOwner' ? 'Chủ khách sạn' : 
-                                 `Thành viên Genius Cấp ${calculateGeniusLevel(userData.totalRecharged || 0)}`}
+                            <h1 className="text-xl font-bold text-slate-800 mb-1">{userData.full_name}</h1>
+                            <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider">
+                                {userData.role === 'hotelOwner' ? 'Chủ khách sạn' :
+                                    `Thành viên Genius Cấp ${calculateGeniusLevel(userData.totalRecharged || 0)}`}
                             </p>
 
-                            
-                            <div className="mt-6 flex flex-col gap-2">
-                                <div className="p-3 bg-gray-50 rounded-lg text-left">
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ví tiền</p>
-                                    <p className="text-lg font-black text-[#003580]">{new Intl.NumberFormat('vi-VN').format(userData.balance || 0)} ₫</p>
+                            <div className="mt-6 flex flex-col gap-3">
+                                <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 text-left">
+                                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-1">Ví tiền</p>
+                                    <p className="text-2xl font-bold text-transparent bg-gradient-to-r from-blue-800 to-cyan-700 bg-clip-text">
+                                        {new Intl.NumberFormat('vi-VN').format(userData.balance || 0)} ₫
+                                    </p>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => navigate('/topup')}
-                                    className="w-full py-2.5 bg-bookingYellow text-bookingText font-bold text-sm rounded-lg hover:bg-yellow-500 transition shadow-sm flex items-center justify-center gap-2"
+                                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"
                                 >
-                                    <span className="material-symbols-outlined text-[18px]">add_card</span>
+                                    <span className="material-symbols-outlined text-lg">add_card</span>
                                     Nạp tiền ngay
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => navigate('/my-bookings')}
-                                    className="w-full py-2.5 bg-white text-[#006ce4] border border-[#006ce4] font-bold text-sm rounded-lg hover:bg-blue-50 transition shadow-sm flex items-center justify-center gap-2"
+                                    className="w-full py-3 bg-white text-blue-600 border-2 border-blue-200 font-bold text-sm rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center justify-center gap-2"
                                 >
-                                    <span className="material-symbols-outlined text-[18px]">luggage</span>
+                                    <span className="material-symbols-outlined text-lg">luggage</span>
                                     Đặt chỗ của tôi
                                 </button>
                             </div>
@@ -193,18 +203,20 @@ const ViewProfile: React.FC = () => {
 
                 {/* Right Side: Details & Form */}
                 <div className="flex-1">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 md:p-10">
-                        <header className="mb-10 flex justify-between items-end border-b border-gray-100 pb-6">
+                    <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl shadow-blue-200/50 border border-blue-100 p-8 md:p-10">
+                        <header className="mb-8 flex justify-between items-center border-b border-blue-100 pb-6">
                             <div>
-                                <h2 className="text-2xl font-black text-[#003580] tracking-tight">Cài đặt hồ sơ</h2>
-                                <p className="text-sm text-gray-400 font-medium">Quản lý thông tin cá nhân và tài khoản của bạn.</p>
+                                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-800 to-cyan-700 bg-clip-text text-transparent tracking-tight">
+                                    Cài đặt hồ sơ
+                                </h2>
+                                <p className="text-sm text-blue-500/70 font-medium mt-1">Quản lý thông tin cá nhân và tài khoản của bạn</p>
                             </div>
                             {!isEditing && (
-                                <button 
-                                    className="bg-[#003580] text-white px-5 py-2 rounded-lg font-bold text-sm hover:bg-[#002a6b] transition active:scale-95 flex items-center gap-2"
+                                <button
+                                    className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md flex items-center gap-2"
                                     onClick={() => setIsEditing(true)}
                                 >
-                                    <span className="material-symbols-outlined text-[18px]">edit_note</span>
+                                    <span className="material-symbols-outlined text-lg">edit_note</span>
                                     Sửa thông tin
                                 </button>
                             )}
@@ -212,31 +224,31 @@ const ViewProfile: React.FC = () => {
 
                         {!isEditing ? (
                             /* VIEW MODE */
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Họ và tên</label>
-                                    <div className="p-4 bg-gray-50 rounded-xl text-gray-700 font-bold border border-transparent">
+                                    <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Họ và tên</label>
+                                    <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl text-slate-700 font-semibold border border-blue-100">
                                         {userData.full_name}
                                     </div>
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Địa chỉ Email</label>
-                                    <div className="p-4 bg-gray-50 rounded-xl text-gray-700 font-bold border border-transparent truncate" title={userData.email}>
+                                    <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Địa chỉ Email</label>
+                                    <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl text-slate-700 font-semibold border border-blue-100 truncate" title={userData.email}>
                                         {userData.email}
                                     </div>
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Số điện thoại</label>
-                                    <div className="p-4 bg-gray-50 rounded-xl text-gray-700 font-bold border border-transparent">
+                                    <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Số điện thoại</label>
+                                    <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl text-slate-700 font-semibold border border-blue-100">
                                         {userData.phone || 'Chưa cập nhật'}
                                     </div>
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Loại tài khoản</label>
-                                    <div className="p-4 bg-gray-50 rounded-xl text-gray-700 font-bold border border-transparent">
+                                    <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Loại tài khoản</label>
+                                    <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl text-slate-700 font-semibold border border-blue-100">
                                         {userData.role === 'hotelOwner' ? 'Cộng tác viên / Chủ khách sạn' : 'Người dùng cá nhân'}
                                     </div>
                                 </div>
@@ -246,120 +258,173 @@ const ViewProfile: React.FC = () => {
                             <form onSubmit={handleUpdate} className="space-y-8">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Họ và tên</label>
-                                        <input 
-                                            type="text"
-                                            className="w-full px-5 py-4 bg-gray-50 rounded-xl text-gray-700 font-bold border-2 border-transparent focus:border-blue-100 focus:bg-white transition-all outline-none"
-                                            value={fullName}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)}
-                                            placeholder="Gõ họ và tên..."
-                                        />
+                                        <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Họ và tên</label>
+                                        <div className="relative group">
+                                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 group-focus-within:text-blue-600 text-xl transition-colors">
+                                                person
+                                            </span>
+                                            <input
+                                                type="text"
+                                                className="w-full pl-12 pr-4 py-3.5 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-700 font-medium placeholder:text-blue-300"
+                                                value={fullName}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)}
+                                                placeholder="Họ và tên của bạn"
+                                            />
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Địa chỉ Email</label>
+                                        <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Địa chỉ Email</label>
                                         <div className="flex gap-2">
-                                            <input 
-                                                type="email"
-                                                className="w-full px-5 py-4 bg-gray-50 rounded-xl text-gray-700 font-bold border-2 border-transparent focus:border-blue-100 focus:bg-white transition-all outline-none"
-                                                value={email}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                                    setEmail(e.target.value);
-                                                    setShowOtpInput(false);
-                                                }}
-                                                placeholder="Gõ email..."
-                                            />
+                                            <div className="flex-1 relative group">
+                                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 group-focus-within:text-blue-600 text-xl transition-colors">
+                                                    email
+                                                </span>
+                                                <input
+                                                    type="email"
+                                                    className="w-full pl-12 pr-4 py-3.5 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-700 font-medium placeholder:text-blue-300"
+                                                    value={email}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                        setEmail(e.target.value);
+                                                        setShowOtpInput(false);
+                                                        setOtp('');
+                                                    }}
+                                                    placeholder="your@email.com"
+                                                />
+                                            </div>
                                             {email !== userData.email && (
-                                                <button 
+                                                <button
                                                     type="button"
                                                     onClick={handleSendOtp}
-                                                    className="px-4 py-4 bg-blue-100 text-[#006ce4] text-xs font-bold rounded-xl whitespace-nowrap hover:bg-blue-200 transition-colors"
+                                                    className="px-5 py-3.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xs font-bold rounded-xl whitespace-nowrap hover:from-blue-600 hover:to-cyan-600 transition-all shadow-md"
                                                 >
-                                                    Nhận OTP
+                                                    Gửi OTP
                                                 </button>
                                             )}
                                         </div>
                                     </div>
 
                                     {showOtpInput && email !== userData.email && (
-                                        <div className="space-y-2 md:col-start-2">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mã OTP xác thực Email</label>
-                                            <input 
-                                                type="text"
-                                                className="w-full px-5 py-4 bg-gray-50 rounded-xl text-gray-700 font-bold border-2 border-transparent focus:border-blue-100 focus:bg-white transition-all outline-none"
-                                                value={otp}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOtp(e.target.value)}
-                                                placeholder="Nhập 6 số OTP..."
-                                            />
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Mã OTP xác thực Email</label>
+                                            <div className="relative group">
+                                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 text-xl">
+                                                    pin
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    className="w-full pl-12 pr-4 py-3.5 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-700 font-medium text-center tracking-wider"
+                                                    value={otp}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOtp(e.target.value)}
+                                                    placeholder="000000"
+                                                    maxLength={6}
+                                                />
+                                            </div>
                                         </div>
                                     )}
 
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Số điện thoại mới</label>
-                                        <input 
-                                            type="tel"
-                                            className="w-full px-5 py-4 bg-gray-50 rounded-xl text-gray-700 font-bold border-2 border-transparent focus:border-blue-100 focus:bg-white transition-all outline-none"
-                                            value={phone}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)}
-                                            placeholder="Gõ số điện thoại..."
-                                        />
+                                        <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Số điện thoại</label>
+                                        <div className="relative group">
+                                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 group-focus-within:text-blue-600 text-xl transition-colors">
+                                                phone
+                                            </span>
+                                            <input
+                                                type="tel"
+                                                className="w-full pl-12 pr-4 py-3.5 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-700 font-medium placeholder:text-blue-300"
+                                                value={phone}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)}
+                                                placeholder="0123 456 789"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="pt-8 border-t border-gray-100">
+                                <div className="pt-6 border-t border-blue-100">
                                     <div className="flex items-center gap-2 mb-6">
-                                        <span className="material-symbols-outlined text-gray-400">lock</span>
-                                        <h3 className="text-sm font-black text-gray-500 uppercase tracking-wider">Đổi mật khẩu bảo mật</h3>
+                                        <span className="material-symbols-outlined text-blue-500">lock</span>
+                                        <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">Đổi mật khẩu bảo mật</h3>
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mật khẩu cũ</label>
-                                            <input 
-                                                type="password"
-                                                className="w-full px-5 py-4 bg-gray-50 rounded-xl text-gray-700 font-bold border-2 border-transparent focus:border-blue-100 focus:bg-white transition-all outline-none"
-                                                value={oldPassword}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOldPassword(e.target.value)}
-                                                placeholder="••••••••"
-                                            />
+                                            <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Mật khẩu cũ</label>
+                                            <div className="relative group">
+                                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 text-xl">
+                                                    lock_open
+                                                </span>
+                                                <input
+                                                    type="password"
+                                                    className="w-full pl-12 pr-4 py-3.5 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-700 font-medium"
+                                                    value={oldPassword}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOldPassword(e.target.value)}
+                                                    placeholder="••••••••"
+                                                />
+                                            </div>
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mật khẩu mới</label>
-                                            <input 
-                                                type="password"
-                                                className="w-full px-5 py-4 bg-gray-50 rounded-xl text-gray-700 font-bold border-2 border-transparent focus:border-blue-100 focus:bg-white transition-all outline-none"
-                                                value={newPassword}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
-                                                placeholder="••••••••"
-                                            />
+                                            <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Mật khẩu mới</label>
+                                            <div className="relative group">
+                                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 text-xl">
+                                                    lock
+                                                </span>
+                                                <input
+                                                    type="password"
+                                                    className="w-full pl-12 pr-4 py-3.5 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-700 font-medium"
+                                                    value={newPassword}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
+                                                    placeholder="••••••••"
+                                                />
+                                            </div>
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Xác nhận lại</label>
-                                            <input 
-                                                type="password"
-                                                className="w-full px-5 py-4 bg-gray-50 rounded-xl text-gray-700 font-bold border-2 border-transparent focus:border-blue-100 focus:bg-white transition-all outline-none"
-                                                value={confirmNewPassword}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmNewPassword(e.target.value)}
-                                                placeholder="••••••••"
-                                            />
+                                            <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">Xác nhận lại</label>
+                                            <div className="relative group">
+                                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 text-xl">
+                                                    verified
+                                                </span>
+                                                <input
+                                                    type="password"
+                                                    className="w-full pl-12 pr-4 py-3.5 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-700 font-medium"
+                                                    value={confirmNewPassword}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmNewPassword(e.target.value)}
+                                                    placeholder="••••••••"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="pt-8 flex gap-3">
-                                    <button 
+                                <div className="pt-6 flex gap-3">
+                                    <button
                                         type="button"
-                                        onClick={() => setIsEditing(false)}
-                                        className="px-8 py-3.5 bg-gray-100 text-gray-500 font-bold text-sm rounded-lg hover:bg-gray-200 transition"
+                                        onClick={() => {
+                                            setIsEditing(false);
+                                            setShowOtpInput(false);
+                                            setOtp('');
+                                            setOldPassword('');
+                                            setNewPassword('');
+                                            setConfirmNewPassword('');
+                                            setAvatarFile(null);
+                                            setPreview(null);
+                                        }}
+                                        className="px-8 py-3.5 bg-gray-100 text-slate-600 font-bold text-sm rounded-xl hover:bg-gray-200 transition-all"
                                     >
                                         Hủy bỏ
                                     </button>
-                                    <button 
+                                    <button
                                         type="submit"
                                         disabled={loading}
-                                        className="flex-1 py-3.5 bg-[#006ce4] text-white font-bold text-sm rounded-lg hover:bg-[#0052ad] transition shadow-lg shadow-blue-100 disabled:opacity-50"
+                                        className="flex-1 py-3.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {loading ? 'Đang xử lý...' : 'Lưu tất cả thay đổi'}
+                                        {loading ? (
+                                            <div className="flex items-center justify-center gap-2">
+                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                <span>Đang xử lý...</span>
+                                            </div>
+                                        ) : (
+                                            'Lưu tất cả thay đổi'
+                                        )}
                                     </button>
                                 </div>
                             </form>

@@ -42,3 +42,4 @@ const authService = {
 };
 
 export default authService;
+//Nó nhận kết quả từ Server trả về (Thành công hay Thất bại) và đưa ngược lại cho các Component (như trang Login) để hiển thị cho người dùng.

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Room, RoomType, IPromotion, ApiResponse } from '../../types';
-import Viewdetails from '../Viewdetails';
+import Viewdetails from '../booking/Viewdetails';
 
 
 interface SearchResult {
@@ -148,7 +148,7 @@ const GlobalSearch: React.FC = () => {
                                                         <span className="text-xl font-black text-[#1a1a1a]">{formatCurrency(room.price)}₫</span>
                                                         <span className="text-[10px] font-bold text-gray-400">/đêm</span>
                                                     </div>
-                                                    <div 
+                                                    <div
                                                         className="w-10 h-10 bg-[#006ce4]/10 rounded-xl flex items-center justify-center text-[#006ce4] group-hover:bg-[#006ce4] group-hover:text-white transition-all underline decoration-transparent"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -255,12 +255,12 @@ const GlobalSearch: React.FC = () => {
             {/* View Details Overlay */}
             {showDetails && selectedRoom && (
                 <div className="fixed inset-0 z-[100] overflow-y-auto">
-                    <Viewdetails 
-                        room={selectedRoom} 
+                    <Viewdetails
+                        room={selectedRoom}
                         onClose={() => {
                             setShowDetails(false);
                             setSelectedRoom(null);
-                        }} 
+                        }}
                     />
                 </div>
             )}

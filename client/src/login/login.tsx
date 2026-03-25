@@ -13,7 +13,7 @@ const Login: React.FC = () => {
     const [otpSent, setOtpSent] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(false);
     const [errorMsg, setErrorMsg] = useState<string>('');
-    
+
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -30,7 +30,7 @@ const Login: React.FC = () => {
         setLoading(true);
         try {
             const data = await authService.login(formData);
-            
+
             if (data.success) {
                 toast.success("Đăng nhập thành công!");
                 localStorage.setItem('token', data.token || '');
@@ -77,10 +77,10 @@ const Login: React.FC = () => {
                 toast.success("Xác thực & Đăng nhập thành công");
                 localStorage.setItem('token', data.token || '');
                 localStorage.setItem('userData', JSON.stringify(data.userData || {}));
-                
+
                 const userData = data.userData;
                 if (userData?.role === 'staff') {
-                   window.location.href = '/staff';
+                    window.location.href = '/staff';
                 } else if (userData?.role === 'admin' || userData?.role === 'hotelOwner') {
                     window.location.href = '/owner';
                 } else {
@@ -96,201 +96,253 @@ const Login: React.FC = () => {
     };
 
     return (
-        <div className="bg-[#f5f5f5] font-sans antialiased min-h-screen flex items-center justify-center py-16 px-4">
-            <main className="w-full max-w-lg">
-                <header className="text-center mb-12">
-                    <Link to="/" className="inline-flex items-center justify-center gap-3 group">
-                        <div className="bg-[#003580] p-2 rounded-xl shadow-lg ring-4 ring-[#003580]/5">
-                            <span className="material-symbols-outlined text-white text-3xl font-black">bed</span>
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            {/* Animated Wave Background */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-blue-200/30 to-transparent"></div>
+                <svg className="absolute bottom-0 left-0 w-full h-48" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
+                    <path fill="rgba(59, 130, 246, 0.1)" fillOpacity="1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+                </svg>
+            </div>
+
+            <div className="w-full max-w-md relative z-10">
+                {/* Logo Section */}
+                <div className="text-center mb-8 animate-fade-in">
+                    <Link to="/" className="inline-flex items-center justify-center gap-2 group">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity animate-pulse"></div>
+                            <div className="relative bg-gradient-to-br from-blue-600 to-cyan-600 p-2.5 rounded-xl shadow-lg">
+                                <span className="material-symbols-outlined text-white text-2xl">bed</span>
+                            </div>
                         </div>
-                        <span className="text-4xl font-[900] text-[#003580] tracking-tighter">QuickStay.com</span>
+                        <span className="text-3xl font-bold bg-gradient-to-r from-blue-800 to-cyan-700 bg-clip-text text-transparent tracking-tight">QuickStay</span>
                     </Link>
-                </header>
+                </div>
 
-                <div className="bg-white rounded-[40px] p-10 md:p-14 shadow-2xl shadow-blue-900/5 border border-gray-50 relative overflow-hidden">
-                    {/* Decorative element */}
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#006ce4]/[0.02] rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                    
-                    <div className="mb-10 text-center md:text-left">
-                        <h1 className="text-3xl font-black text-[#1a1a1a] mb-3 leading-tight tracking-tight">
-                            {isOtpMode ? "Đăng nhập xác thực" : "Mừng bạn trở lại!"}
-                        </h1>
-                        <p className="text-gray-500 font-medium text-base">
-                            {isOtpMode ? "Nhập mã OTP được gửi tới tài khoản Google của bạn" : "Vui lòng nhập thông tin để tiếp tục trải nghiệm cùng QuickStay"}
-                        </p>
-                    </div>
+                {/* Main Card */}
+                <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl shadow-blue-200/50 border border-blue-100 overflow-hidden transform transition-all duration-300 hover:shadow-blue-300/30">
+                    <div className="p-8 sm:p-10">
+                        {/* Header */}
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-bold text-transparent bg-gradient-to-r from-blue-800 to-cyan-700 bg-clip-text mb-2 tracking-tight">
+                                {isOtpMode ? "Xác thực đăng nhập" : "Chào mừng trở lại"}
+                            </h2>
+                            <p className="text-blue-600/70 text-sm">
+                                {isOtpMode
+                                    ? "Nhập mã xác thực được gửi đến email của bạn"
+                                    : "Đăng nhập để tiếp tục trải nghiệm dịch vụ cao cấp"}
+                            </p>
+                        </div>
 
-                    {!isOtpMode ? (
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            {errorMsg && (
-                                <div className="bg-[#d4111e]/10 text-[#d4111e] text-xs font-black px-4 py-3 rounded-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 border border-[#d4111e]/20">
-                                    <span className="material-symbols-outlined text-lg">error</span>
-                                    {errorMsg}
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1" htmlFor="email">Email tài khoản</label>
-                                <div className="relative group">
-                                    <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#006ce4] transition-colors">alternate_email</span>
-                                    <input 
-                                        className="w-full pl-14 pr-6 py-4.5 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-100 focus:bg-white text-sm font-black text-gray-700 outline-none transition-all placeholder:text-gray-200" 
-                                        id="email" 
-                                        name="email" 
-                                        placeholder="your-email@gmail.com" 
-                                        required 
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center px-1">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]" htmlFor="password">Mật khẩu</label>
-                                    <Link to="/forgot" className="text-xs font-black text-[#006ce4] hover:underline">Quên mật khẩu?</Link>
-                                </div>
-                                <div className="relative group">
-                                    <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#006ce4] transition-colors">lock</span>
-                                    <input 
-                                        className="w-full pl-14 pr-6 py-4.5 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-100 focus:bg-white text-sm font-black text-gray-700 outline-none transition-all placeholder:text-gray-200" 
-                                        id="password" 
-                                        name="password" 
-                                        placeholder="••••••••" 
-                                        required 
-                                        type="password"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-                            </div>
-
-                            <button 
-                                disabled={loading}
-                                className="w-full bg-[#006ce4] text-white font-black py-5 px-4 rounded-2xl hover:bg-[#0057b8] transition-all shadow-xl shadow-blue-500/10 mt-6 flex items-center justify-center gap-3 group disabled:opacity-70 active:scale-[0.98] transform" 
-                                type="submit"
-                            >
-                                {loading ? (
-                                    <span className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                ) : (
-                                    <>
-                                        <span>Đăng nhập ngay</span>
-                                        <span className="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform">login</span>
-                                    </>
+                        {!isOtpMode ? (
+                            <form onSubmit={handleSubmit} className="space-y-5">
+                                {errorMsg && (
+                                    <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg animate-shake">
+                                        <div className="flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-red-500 text-sm">error_outline</span>
+                                            <p className="text-red-600 text-sm font-medium">{errorMsg}</p>
+                                        </div>
+                                    </div>
                                 )}
-                            </button>
-                        </form>
-                    ) : (
-                        <form onSubmit={handleVerifyOtp} className="space-y-8">
-                            <div className="space-y-3 text-center">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]" htmlFor="email-otp">Nhập địa chỉ email đăng ký</label>
-                                <div className="relative group overflow-hidden bg-gray-50 rounded-2xl border-2 border-transparent focus-within:border-blue-100 focus-within:bg-white transition-all flex">
-                                    <input 
-                                        className="flex-1 pl-6 pr-4 py-4.5 bg-transparent text-sm font-black text-gray-700 outline-none disabled:opacity-60" 
-                                        id="email-otp" 
-                                        name="email" 
-                                        placeholder="account@gmail.com" 
-                                        required 
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={handleChange}
-                                        disabled={otpSent}
-                                    />
-                                    {!otpSent && (
-                                        <button 
-                                            type="button"
-                                            onClick={handleSendOtp}
-                                            disabled={loading}
-                                            className="px-8 bg-[#003580] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#002a6b] transition-all disabled:opacity-50"
-                                        >
-                                            Gửi mã
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
 
-                            {otpSent && (
-                                <div className="space-y-4 animate-in slide-in-from-top-4 duration-500 text-center">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]" htmlFor="otp">Vui lòng nhập mã OTP</label>
-                                    <input 
-                                        className="w-full px-5 py-6 bg-gray-50 rounded-2xl border-none text-4xl font-black text-[#003580] tracking-[0.6em] text-center focus:ring-4 focus:ring-blue-50 transition-all outline-none" 
-                                        id="otp" 
-                                        name="otp" 
-                                        placeholder="000000" 
-                                        maxLength={6}
-                                        required 
-                                        type="text"
-                                        value={formData.otp}
-                                        onChange={handleChange}
-                                    />
-                                    <p className="mt-4">
-                                        <button type="button" onClick={handleSendOtp} className="text-[10px] font-black text-[#006ce4] hover:underline uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-full">Gửi lại mã mới</button>
-                                    </p>
+                                {/* Email Field */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-blue-900 mb-2" htmlFor="email">
+                                        Địa chỉ email
+                                    </label>
+                                    <div className="relative group">
+                                        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 group-focus-within:text-blue-600 text-xl transition-colors">
+                                            email
+                                        </span>
+                                        <input
+                                            className="w-full pl-12 pr-4 py-3 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-800 placeholder:text-blue-300"
+                                            id="email"
+                                            name="email"
+                                            placeholder="your@email.com"
+                                            required
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
                                 </div>
-                            )}
 
-                            <div className="pt-4">
-                                <button 
-                                    disabled={loading || !otpSent}
-                                    className="w-full bg-[#006ce4] text-white font-black py-5 px-4 rounded-2xl hover:bg-[#0057b8] transition-all shadow-xl shadow-blue-500/10 disabled:opacity-50 active:scale-[0.98] transform" 
+                                {/* Password Field */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="text-sm font-semibold text-blue-900" htmlFor="password">
+                                            Mật khẩu
+                                        </label>
+                                        <Link to="/forgot" className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors">
+                                            Quên mật khẩu?
+                                        </Link>
+                                    </div>
+                                    <div className="relative group">
+                                        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 group-focus-within:text-blue-600 text-xl transition-colors">
+                                            lock
+                                        </span>
+                                        <input
+                                            className="w-full pl-12 pr-4 py-3 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-800 placeholder:text-blue-300"
+                                            id="password"
+                                            name="password"
+                                            placeholder="••••••••"
+                                            required
+                                            type="password"
+                                            value={formData.password}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Submit Button */}
+                                <button
+                                    disabled={loading}
+                                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold py-3.5 px-4 rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-blue-500/30 disabled:opacity-70 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
                                     type="submit"
                                 >
-                                    {loading ? "Đang xác thực..." : "Xác nhận & Đăng nhập"}
+                                    {loading ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                            <span>Đang xử lý...</span>
+                                        </div>
+                                    ) : (
+                                        <span>Đăng nhập</span>
+                                    )}
                                 </button>
-                                <button 
-                                    type="button"
-                                    onClick={() => {setIsOtpMode(false); setOtpSent(false);}}
-                                    className="w-full mt-6 text-xs font-black text-gray-400 uppercase tracking-[0.2em] hover:text-[#003580] transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <span className="material-symbols-outlined text-lg">keyboard_backspace</span>
-                                    Quay về dùng mật khẩu
-                                </button>
+                            </form>
+                        ) : (
+                            <form onSubmit={handleVerifyOtp} className="space-y-6">
+                                {/* Email Field with OTP Button */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-blue-900 mb-2" htmlFor="email-otp">
+                                        Địa chỉ email
+                                    </label>
+                                    <div className="flex gap-3">
+                                        <div className="flex-1 relative">
+                                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 text-xl">
+                                                email
+                                            </span>
+                                            <input
+                                                className="w-full pl-12 pr-4 py-3 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-slate-800 disabled:bg-blue-100/50 disabled:text-slate-500"
+                                                id="email-otp"
+                                                name="email"
+                                                placeholder="your@email.com"
+                                                required
+                                                type="email"
+                                                value={formData.email}
+                                                onChange={handleChange}
+                                                disabled={otpSent}
+                                            />
+                                        </div>
+                                        {!otpSent && (
+                                            <button
+                                                type="button"
+                                                onClick={handleSendOtp}
+                                                disabled={loading}
+                                                className="px-6 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all disabled:opacity-50 whitespace-nowrap shadow-md"
+                                            >
+                                                {loading ? "Đang gửi..." : "Gửi mã"}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* OTP Field */}
+                                {otpSent && (
+                                    <div className="space-y-4 animate-in fade-in duration-300">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-blue-900 mb-2" htmlFor="otp">
+                                                Mã xác thực
+                                            </label>
+                                            <input
+                                                className="w-full px-4 py-3 bg-blue-50/50 border border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all outline-none text-center text-2xl font-mono tracking-wider text-blue-900"
+                                                id="otp"
+                                                name="otp"
+                                                placeholder="000000"
+                                                maxLength={6}
+                                                required
+                                                type="text"
+                                                value={formData.otp}
+                                                onChange={handleChange}
+                                            />
+                                        </div>
+
+                                        {/* Resend Button */}
+                                        <div className="text-center">
+                                            <button
+                                                type="button"
+                                                onClick={handleSendOtp}
+                                                className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                                            >
+                                                Gửi lại mã xác thực
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Submit and Back Buttons */}
+                                <div className="space-y-3 pt-4">
+                                    <button
+                                        disabled={loading || !otpSent}
+                                        className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold py-3.5 px-4 rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
+                                        type="submit"
+                                    >
+                                        {loading ? "Đang xác thực..." : "Xác nhận & Đăng nhập"}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIsOtpMode(false); setOtpSent(false); }}
+                                        className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors py-2"
+                                    >
+                                        ← Quay lại đăng nhập bằng mật khẩu
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {/* Divider */}
+                        <div className="relative my-8">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-blue-200"></div>
                             </div>
-                        </form>
-                    )}
-
-                    <div className="relative my-10">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-100"></div>
+                            <div className="relative flex justify-center text-xs">
+                                <span className="px-4 bg-white text-blue-400">HOẶC</span>
+                            </div>
                         </div>
-                        <div className="relative flex justify-center text-[9px] font-black uppercase tracking-[0.4em] text-gray-300">
-                            <span className="px-6 bg-white">Lựa chọn khác</span>
-                        </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                        {/* Google Login */}
                         {!isOtpMode && (
-                            <button 
+                            <button
                                 onClick={() => setIsOtpMode(true)}
-                                className="col-span-2 flex items-center justify-center gap-4 py-4.5 bg-white border-2 border-gray-100 rounded-2xl hover:border-blue-100 hover:bg-blue-50/30 transition-all group group"
+                                className="w-full flex items-center justify-center gap-3 py-3 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
                             >
-                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6 grayscale group-hover:grayscale-0 transition-all" alt="Google" />
-                                <span className="text-sm font-black text-[#1a1a1a]">Tiếp tục với Google</span>
+                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+                                <span className="text-sm font-semibold text-blue-700 group-hover:text-blue-800">
+                                    Đăng nhập với Google
+                                </span>
                             </button>
                         )}
-                        <button className="flex items-center justify-center gap-2 py-4 border-2 border-gray-100 rounded-2xl hover:bg-gray-50 transition-all active:scale-[0.96] transform">
-                            <svg className="w-6 h-6" fill="#1877F2" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"></path></svg>
-                            <span className="text-[11px] font-black uppercase tracking-widest text-[#1a1a1a]">Facebook</span>
-                        </button>
-                        <button className="flex items-center justify-center gap-2 py-4 border-2 border-gray-100 rounded-2xl hover:bg-gray-50 transition-all active:scale-[0.96] transform">
-                             <svg className="w-6 h-6" fill="#000000" viewBox="0 0 24 24"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701z"></path></svg>
-                             <span className="text-[11px] font-black uppercase tracking-widest text-[#1a1a1a]">Apple</span>
-                        </button>
-                    </div>
 
-                    <div className="mt-12 text-center">
-                        <p className="text-gray-400 text-sm font-medium">
-                            Bạn mới ghé thăm QuickStay? 
-                            <Link className="text-[#006ce4] font-black ml-2 hover:underline tracking-tight" to="/register">Đăng ký tài khoản</Link>
-                        </p>
+                        {/* Sign Up Link */}
+                        <div className="mt-8 text-center">
+                            <p className="text-sm text-blue-600/70">
+                                Chưa có tài khoản?{' '}
+                                <Link className="text-blue-600 hover:text-blue-700 font-semibold transition-colors" to="/register">
+                                    Đăng ký ngay
+                                </Link>
+                            </p>
+                        </div>
                     </div>
                 </div>
-                
-                <footer className="mt-12 text-center text-[10px] font-black uppercase tracking-[0.4em] text-gray-400 opacity-60">
-                    QuickStay Global - Version 2.0
-                </footer>
-            </main>
+
+                {/* Footer */}
+                <div className="mt-8 text-center">
+                    <p className="text-xs text-blue-500/60 tracking-wide">
+                        QuickStay Premium • Trải nghiệm đẳng cấp
+                    </p>
+                </div>
+            </div>
         </div>
     );
 };

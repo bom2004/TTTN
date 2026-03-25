@@ -18,12 +18,12 @@ export const checkRoomAvailability = async (
 ) => {
     // Tìm các đơn đặt trùng khoảng thời gian
     const overlapping = await bookingModel.find({
-        status: { $nin: ['cancelled', 'completed'] },
+        status: { $nin: ['cancelled', 'completed'] }, // lấy các booking còn hiệu lực
         checkInDate: { $lt: targetOut },
         checkOutDate: { $gt: targetIn }
     }).session(session as any);
 
-    const bookedCount: Record<string, number> = {};
+    const bookedCount: Record<string, number> = {}; // Khởi tạo biến đếm đặt phòng
     if (overlapping.length > 0) {
         const ids = overlapping.map(b => b._id);
         const details = await bookingDetailModel.find({

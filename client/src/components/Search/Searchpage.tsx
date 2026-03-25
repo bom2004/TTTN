@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { assets, cities } from '../../assets/assets';
 import { Room, RoomType, ApiResponse } from '../../types';
-import Viewdetails from '../Viewdetails';
+import Viewdetails from '../booking/Viewdetails';
 import { toast } from 'react-toastify';
 
 
@@ -96,9 +96,9 @@ const SearchPage: React.FC = () => {
         fetchRooms();
     }, [searchParams]);
 
-
+    // cập nhật bộ lọc 
     const handleApplyFilters = (): void => {
-        const newParams: Record<string, string> = {};
+        const newParams: Record<string, string> = {};// khởi tạo đối tượng trống chứa các thông tin lọc
         if (query) newParams.query = query;
         if (capacity) newParams.capacity = capacity;
         if (selectedType) newParams.type = selectedType;
@@ -108,7 +108,7 @@ const SearchPage: React.FC = () => {
         if (maxPrice < 5000000) newParams.maxPrice = maxPrice.toString();
         if (sortBy !== 'newest') newParams.sort = sortBy;
 
-        setSearchParams(newParams);
+        setSearchParams(newParams); // cập nhật URL với các tham số lọc mới
         setShowFilters(false);
         setCurrentPage(1);
     };
