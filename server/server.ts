@@ -10,17 +10,31 @@ import vnpayRouter from "./routes/vnpayRoute.ts";
 import promotionRouter from "./routes/promotionRoute.ts";
 import searchRouter from "./routes/searchRoute.ts";
 import bookingRouter from "./routes/bookingRoute.ts";
+import commentRouter from "./routes/commentRoute.ts";
+import statsRouter from "./routes/statsRoute.ts";
 
+import { createServer } from 'http';
+import { initSocket } from './socket.ts';
+import { initBookingCleanupTask } from './tasks/bookingCleanup.ts';
+import { globalErrorHandler } from './middlewares/errorMiddleware.ts';
 
 const app = express();
+const httpServer = createServer(app);
 
 await connectDB();
+
+// Initialize Socket.io
+initSocket(httpServer);
+
+// Initialize Tasks (Dọn dẹp đơn ảo,...)
+initBookingCleanupTask();
 
 // Cấu hình Middleware (Các phần mềm trung gian)
 app.use(cors());
 app.use(express.json());
 
 // Định nghĩa các luồng API (Routes)
+app.use("/api/stats", statsRouter);
 app.use("/api/user", userRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/room-types", roomTypeRouter);
@@ -29,31 +43,15 @@ app.use("/api/vnpay", vnpayRouter);
 app.use("/api/promotions", promotionRouter);
 app.use("/api/search", searchRouter);
 app.use("/api/bookings", bookingRouter);
+app.use("/api/comments", commentRouter);
 
 app.get('/', (_req: Request, res: Response) => res.send('API is working'));
 
 // Bộ xử lý lỗi toàn cục (Global Error Handler)
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("Global Error Handler:", err);
-    
-    // Xử lý các lỗi liên quan đến Multer (Tải tệp tin)
-    if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ success: false, message: "File quá lớn! Vui lòng chọn ảnh dưới 5MB." });
-    }
-    
-    if (err.message === 'Chỉ cho phép tải lên hình ảnh!') {
-        return res.status(400).json({ success: false, message: err.message });
-    }
-
-    res.status(err.status || 500).json({ 
-        success: false, 
-        message: err.message || "Đã xảy ra lỗi hệ thống" 
-    });
-});
+app.use(globalErrorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
-

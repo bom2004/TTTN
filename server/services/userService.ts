@@ -53,7 +53,21 @@ export const processSaveUser = async (id: string | undefined, data: any, file?: 
 
     // 3. Chuẩn hóa dữ liệu số (balance, totalRecharged)
     if (updateData.balance !== undefined) updateData.balance = Number(updateData.balance);
-    if (updateData.totalRecharged !== undefined) updateData.totalRecharged = Number(updateData.totalRecharged);
+    if (updateData.totalRecharged !== undefined) {
+        updateData.totalRecharged = Number(updateData.totalRecharged);
+
+        // 4. Tự động tính lại hạng thành viên khi totalRecharged thay đổi
+        const total = updateData.totalRecharged;
+        if (total >= 150000000) {
+            updateData.membershipLevel = 'platinum';
+        } else if (total >= 50000000) {
+            updateData.membershipLevel = 'diamond';
+        } else if (total >= 10000000) {
+            updateData.membershipLevel = 'gold';
+        } else {
+            updateData.membershipLevel = 'silver';
+        }
+    }
 
     if (id) {
         // Cập nhật người dùng cũ

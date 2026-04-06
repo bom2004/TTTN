@@ -5,10 +5,11 @@ export interface IUser extends Document {
     email: string;
     phone?: string;
     password?: string;
-    role: 'customer' | 'staff' | 'admin' | 'hotelOwner';
+    role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
     avatar: string;
     balance: number;
     totalRecharged: number;
+    membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
     createdAt: Date;
     updatedAt: Date;
 }
@@ -18,10 +19,20 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     phone: { type: String, required: false },
     password: { type: String, required: false },
-    role: { type: String, default: 'customer' }, // 'customer', 'staff', 'admin', 'hotelOwner'
+    role: { 
+        type: String, 
+        enum: ['customer', 'staff', 'admin', 'hotelOwner', 'receptionist', 'accountant'],
+        default: 'customer' 
+    },
     avatar: { type: String, default: "" },
     balance: { type: Number, default: 0 },
     totalRecharged: { type: Number, default: 0 },
+    membershipLevel: { 
+        type: String, 
+        enum: ['silver', 'gold', 'diamond', 'platinum'], 
+        default: 'silver' 
+    },
+    salary_base: { type: Number, default: 10000000 },
 }, { timestamps: true });
 
 

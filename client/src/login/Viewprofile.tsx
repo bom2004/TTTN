@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { assets } from '../assets/assets';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'react-toastify';
-import { ApiResponse, UserData } from '../types';
+import { useAppDispatch, useAppSelector } from '../lib/redux/store';
+import { selectAuthUser, selectAuthLoading, sendOTPThunk, updateProfileThunk } from '../lib/redux/reducers/auth';
 
 const ViewProfile: React.FC = () => {
-    const backendUrl = "http://localhost:3000";
     const navigate = useNavigate();
-    const [userData, setUserData] = useState<UserData | null>(null);
+    const dispatch = useAppDispatch();
+    const userData = useAppSelector(selectAuthUser);
+    const authLoading = useAppSelector(selectAuthLoading);
+
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(false);
 
@@ -24,25 +25,22 @@ const ViewProfile: React.FC = () => {
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
 
-    const calculateGeniusLevel = (total: number): number => {
-        if (!total || total < 100000) return 0;
-        if (total < 500000) return 1;
-        const level = Math.floor(total / 500000) + 1;
-        return Math.min(level, 10);
+    const getMembershipInfo = (total: number) => {
+        if (!total || total < 10000000) return 'Silver';
+        if (total < 50000000) return 'Gold';
+        if (total < 150000000) return 'Diamond';
+        return 'Platinum';
     };
 
     useEffect(() => {
-        const storedUser = localStorage.getItem('userData');
-        if (storedUser) {
-            const parsedUser: UserData = JSON.parse(storedUser);
-            setUserData(parsedUser);
-            setPhone(parsedUser.phone || '');
-            setFullName(parsedUser.full_name || '');
-            setEmail(parsedUser.email || '');
+        if (userData) {
+            setPhone(userData.phone || '');
+            setFullName(userData.full_name || '');
+            setEmail(userData.email || '');
         } else {
             navigate('/login');
         }
-    }, [navigate]);
+    }, [userData, navigate]);
 
     const handleSendOtp = async (): Promise<void> => {
         if (!email) {
@@ -50,15 +48,11 @@ const ViewProfile: React.FC = () => {
             return;
         }
         try {
-            const response = await axios.post(`${backendUrl}/api/auth/send-otp`, { email, checkExist: true });
-            if (response.data.success) {
-                toast.success(response.data.message);
-                setShowOtpInput(true);
-            } else {
-                toast.error(response.data.message);
-            }
+            await dispatch(sendOTPThunk({ email, checkExist: true })).unwrap();
+            toast.success("Mã OTP đã được gửi đến email của bạn");
+            setShowOtpInput(true);
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Lỗi gửi OTP");
+            toast.error(error || "Lỗi gửi OTP");
         }
     };
 
@@ -70,16 +64,17 @@ const ViewProfile: React.FC = () => {
             return;
         }
 
-        if (!userData?.id) return;
+        const uid = userData?.id || (userData as any)?._id;
+        if (!uid) return;
 
         setLoading(true);
         try {
             const formData = new FormData();
-            formData.append('userId', userData.id);
+            formData.append('userId', uid);
             formData.append('phone', phone);
             formData.append('full_name', fullName);
             formData.append('email', email);
-            if (email !== userData.email) {
+            if (email !== userData?.email) {
                 formData.append('otp', otp);
             }
 
@@ -91,27 +86,18 @@ const ViewProfile: React.FC = () => {
                 formData.append('avatar', avatarFile);
             }
 
-            const response = await axios.post<ApiResponse<UserData>>(`${backendUrl}/api/user/update-profile`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            await dispatch(updateProfileThunk(formData)).unwrap();
 
-            if (response.data.success && response.data.userData) {
-                toast.success(response.data.message);
-                const updatedUser: UserData = { ...userData, ...response.data.userData };
-                localStorage.setItem('userData', JSON.stringify(updatedUser));
-                setUserData(updatedUser);
-                setIsEditing(false);
-                setOldPassword('');
-                setNewPassword('');
-                setConfirmNewPassword('');
-                setAvatarFile(null);
-                setShowOtpInput(false);
-                setOtp('');
-            } else {
-                toast.error(response.data.message);
-            }
+            toast.success("Cập nhật hồ sơ thành công");
+            setIsEditing(false);
+            setOldPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+            setAvatarFile(null);
+            setShowOtpInput(false);
+            setOtp('');
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Lỗi cập nhật hồ sơ");
+            toast.error(error || "Lỗi cập nhật hồ sơ");
         } finally {
             setLoading(false);
         }
@@ -172,7 +158,7 @@ const ViewProfile: React.FC = () => {
                             <h1 className="text-xl font-bold text-slate-800 mb-1">{userData.full_name}</h1>
                             <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider">
                                 {userData.role === 'hotelOwner' ? 'Chủ khách sạn' :
-                                    `Thành viên Genius Cấp ${calculateGeniusLevel(userData.totalRecharged || 0)}`}
+                                    `Thành viên VIP Hạng ${getMembershipInfo(userData.totalRecharged || 0)}`}
                             </p>
 
                             <div className="mt-6 flex flex-col gap-3">

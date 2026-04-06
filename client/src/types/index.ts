@@ -4,7 +4,7 @@ export interface UserData {
     full_name: string;
     email: string;
     phone?: string;
-    role: 'customer' | 'staff' | 'admin' | 'hotelOwner';
+    role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
     avatar: string;
     balance: number;
     totalRecharged: number;
@@ -16,28 +16,11 @@ export interface RoomType {
     name: string;
     description?: string;
     basePrice: number;
-    isActive: boolean;
-    image: string;
-    createdAt?: string;
-    updatedAt?: string;
-}
-
-export interface Room {
-    _id: string;
-    name: string;
-    roomType: string;
+    totalInventory: number;
     capacity: number;
     size: number;
-
     bedType: string;
     view?: string;
-    description: string;
-    price: number;
-    originalPrice?: number;
-    availableRooms: number;
-    status: 'available' | 'sold_out';
-    thumbnail: string;
-    images: string[];
     amenities: {
         wifi: boolean;
         airConditioner: boolean;
@@ -48,6 +31,18 @@ export interface Room {
     };
     rating: number;
     reviewCount: number;
+    isActive: boolean;
+    image: string;
+    images: string[];
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface Room {
+    _id: string;
+    roomNumber: string;
+    roomTypeId: RoomType | string | any;
+    status: 'available' | 'occupied' | 'maintenance';
     hotelId?: string;
     createdAt?: string;
     updatedAt?: string;

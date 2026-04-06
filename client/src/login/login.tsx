@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { assets } from '../assets/assets';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'react-toastify';
-import { ApiResponse, UserData } from '../types';
-import authService from '../api/authService';
+import { UserData } from '../types';
+
+import { useAppDispatch } from '../lib/redux/store';
+import { loginThunk, sendOTPThunk, verifyOTPThunk } from '../lib/redux/reducers/auth';
 
 const Login: React.FC = () => {
-    const backendUrl = "http://localhost:3000";
+
     const navigate = useNavigate();
+    const dispatch = useAppDispatch();
     const [isOtpMode, setIsOtpMode] = useState<boolean>(false);
     const [otpSent, setOtpSent] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(false);
@@ -29,19 +31,20 @@ const Login: React.FC = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const data = await authService.login(formData);
+            const data = await dispatch(loginThunk({
+                email: formData.email,
+                password: formData.password
+            })).unwrap();
 
             if (data.success) {
                 toast.success("Đăng nhập thành công!");
-                localStorage.setItem('token', data.token || '');
-                localStorage.setItem('userData', JSON.stringify(data.userData || {}));
                 window.location.href = '/';
             } else {
                 toast.error(data.message);
             }
         } catch (error: any) {
             console.error(error);
-            setErrorMsg(error.response?.data?.message || "Tên đăng nhập hoặc mật khẩu không chính xác");
+            setErrorMsg(error || "Tên đăng nhập hoặc mật khẩu không chính xác");
         } finally {
             setLoading(false);
         }
@@ -54,14 +57,14 @@ const Login: React.FC = () => {
         }
         setLoading(true);
         try {
-            const data = await authService.sendOTP(formData.email);
+            const data = await dispatch(sendOTPThunk({ email: formData.email, checkExist: false })).unwrap();
             if (data.success) {
                 toast.success(data.message);
                 setOtpSent(true);
             }
         } catch (error: any) {
             console.error(error);
-            toast.error(error.response?.data?.message || "Lỗi khi gửi OTP");
+            toast.error(error || "Lỗi khi gửi OTP");
         } finally {
             setLoading(false);
         }
@@ -71,12 +74,13 @@ const Login: React.FC = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const data = await authService.verifyOTP(formData.email, formData.otp);
+            const data = await dispatch(verifyOTPThunk({
+                email: formData.email,
+                otp: formData.otp
+            })).unwrap();
 
             if (data.success) {
                 toast.success("Xác thực & Đăng nhập thành công");
-                localStorage.setItem('token', data.token || '');
-                localStorage.setItem('userData', JSON.stringify(data.userData || {}));
 
                 const userData = data.userData;
                 if (userData?.role === 'staff') {
@@ -89,7 +93,7 @@ const Login: React.FC = () => {
             }
         } catch (error: any) {
             console.error(error);
-            toast.error(error.response?.data?.message || "Mã OTP không đúng");
+            toast.error(error || "Mã OTP không đúng");
         } finally {
             setLoading(false);
         }

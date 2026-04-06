@@ -101,16 +101,19 @@ export const validatePromoCode = async (
         if (!isApplicable) throw new Error("Mã này không áp dụng cho phòng bạn đặt.");
     }
 
-    // Kiểm tra cấp độ Genius
+    // Kiểm tra cấp độ Thành viên VIP
     if (promo.minGeniusLevel > 0) {
-        if (!userId) throw new Error("Vui lòng đăng nhập để dùng mã tri ân Genius.");
+        if (!userId) throw new Error("Vui lòng đăng nhập để sử dụng mã đặc quyền Thành viên.");
 
         const user = await userModel.findById(userId);
         if (!user) throw new Error("Thông tin người dùng không tìm thấy.");
 
         const userLevel = calculateGeniusLevel(user.totalRecharged || 0);
         if (userLevel < promo.minGeniusLevel) {
-            throw new Error(`Mã này chỉ dành cho Genius ${promo.minGeniusLevel}+. Bạn hiện ở Genius ${userLevel}.`);
+            const levels = ['Silver', 'Gold', 'Diamond', 'Platinum'];
+            const requireLevelName = levels[promo.minGeniusLevel] || 'Platinum';
+            const currentLevelName = levels[userLevel] || 'Silver';
+            throw new Error(`Mã này ưu đãi độc quyền dành cho hạng ${requireLevelName} trở lên. Bạn hiện đang ở hạng ${currentLevelName}. Hãy nạp thêm để thăng hạng!`);
         }
     }
 

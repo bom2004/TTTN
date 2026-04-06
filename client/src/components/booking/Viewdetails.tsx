@@ -4,44 +4,69 @@ import { useNavigate } from 'react-router-dom';
 import { Room } from '../../types';
 import Navbar from '../Navbar';
 import Footer from '../Footer';
+import { useAppSelector } from '../../lib/redux/store';
+import { selectIsLoggedIn } from '../../lib/redux/reducers/auth/selectors';
+import CommentSection from '../comment/comment';
 
 
 interface ViewdetailsProps {
-    room: Room | null;
+    room: any;
     onClose?: () => void;
+    checkIn?: string;
+    checkOut?: string;
 }
 
-const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
+const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose, checkIn, checkOut }) => {
     const navigate = useNavigate();
     const [isGalleryOpen, setIsGalleryOpen] = useState(false);
     const [currentImageIdx, setCurrentImageIdx] = useState(0);
 
+    const isLoggedIn = useAppSelector(selectIsLoggedIn);
+
     if (!room) return null;
 
 
-    // Hàm hỗ trợ để lấy danh sách tiện nghi an toàn (kể cả từ các bản ghi cũ)
-    const safeAmenities = (room.amenities && !Array.isArray(room.amenities)) ? room.amenities : {
-        wifi: false,
-        airConditioner: false,
-        breakfast: false,
-        minibar: false,
-        tv: false,
-        balcony: false
+    // Xử lý an toàn dữ liệu từ bảng loại phòng (roomTypeId)
+    // Nếu room đã là một object Loại phòng (từ tìm kiếm), ta dùng chính nó
+    const roomTypeObj = (room as any).roomTypeId || room || {};
+    const amenitiesObj = (() => {
+        let am = roomTypeObj.amenities;
+        if (typeof am === 'string') {
+            try { am = JSON.parse(am); } catch (e) { }
+        }
+        return am && typeof am === 'object' ? am : {};
+    })();
+
+    const safeAmenities = {
+        wifi: !!amenitiesObj.wifi,
+        airConditioner: !!amenitiesObj.airConditioner,
+        breakfast: !!amenitiesObj.breakfast,
+        minibar: !!amenitiesObj.minibar,
+        tv: !!amenitiesObj.tv,
+        balcony: !!amenitiesObj.balcony
     };
 
-    const allImages = [room.thumbnail || (room as any).avatar, ...(room.images || [])].filter(Boolean);
+    const allImages = [roomTypeObj.image, ...(roomTypeObj.images || [])].filter(Boolean);
+    if (allImages.length === 0) {
+        allImages.push('https://images.unsplash.com/photo-1590490359683-658d3d23f972?q=80&w=800');
+    }
     const displayImages = allImages.slice(0, 5);
     const extraImagesCount = allImages.length > 5 ? allImages.length - 5 : 0;
 
+    const typeName = roomTypeObj.name || 'Tiêu chuẩn';
+    const roomName = (room as any).roomNumber ? `Phòng ${(room as any).roomNumber}` : typeName;
+    const basePrice = (roomTypeObj as any).basePrice || (room as any).price || 0;
+
     const getPriceUnit = () => {
-        const typeName = (room.roomType || "").toString().toLowerCase();
-        if (typeName.includes('karaoke')) return 'tiếng';
-        if (typeName.includes('tiệc')) return 'buổi';
-        if (typeName.includes('thường') || typeName.includes('vip')) return 'ngày';
-        return 'đêm';
+        const typeStr = typeName.toLowerCase();
+        if (typeStr.includes('karaoke')) return 'tiếng';
+        if (typeStr.includes('tiệc')) return 'buổi';
+        return 'ngày';
     };
 
     const priceUnit = getPriceUnit();
+    const safeRating = (room as any).rating !== undefined ? Number((room as any).rating) : 5;
+    const safeReviewCount = (room as any).reviewCount !== undefined ? Number((room as any).reviewCount) : 124;
 
     const openGallery = (idx: number) => {
         setCurrentImageIdx(idx);
@@ -57,14 +82,17 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
         e.stopPropagation();
         setCurrentImageIdx((prev) => (prev - 1 + allImages.length) % allImages.length);
     };
-    // xử lý khi chưa dăng nhập không thể đặt phòng
-    const isLoggedIn = !!localStorage.getItem('userData');
 
     const handleBookingClick = () => {
         if (!isLoggedIn) {
-            navigate('/login'); // Chuyển hướng đến Đăng nhập nếu chưa có userData
+            navigate('/login');
         } else {
-            navigate('/booking', { state: { room } });
+            // Đảm bảo object room truyền sang trang booking có thuộc tính price (được map từ basePrice nếu cần)
+            const roomWithPrice = { 
+                ...room, 
+                price: (room as any).price || (room as any).basePrice || 0 
+            };
+            navigate('/booking', { state: { room: roomWithPrice, checkIn, checkOut } });
         }
     };
 
@@ -78,7 +106,7 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center justify-center">
                         <span className="material-symbols-outlined">arrow_back</span>
                     </button>
-                    <h1 className="text-lg font-bold leading-tight tracking-tight">Chi tiết phòng: {room.name || (room as any).roomNumber}</h1>
+                    <h1 className="text-lg font-bold leading-tight tracking-tight">Chi tiết phòng: {roomName}</h1>
                 </div>
             </div>
 
@@ -102,7 +130,7 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                         onClick={() => openGallery(0)}
                     >
                         <img
-                            alt={room.name}
+                            alt={roomName}
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                             src={displayImages[0] || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?q=80&w=800'}
                         />
@@ -114,7 +142,7 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                             onClick={() => openGallery(idx + 1)}
                         >
                             <img
-                                alt={`${room.name || 'Room'} ${idx + 2}`}
+                                alt={`${roomName} ${idx + 2}`}
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                 src={img}
                             />
@@ -131,7 +159,7 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                                 </div>
                             )}
                             <img
-                                alt={`${room.name || 'Room'} 5`}
+                                alt={`${roomName} 5`}
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                 src={displayImages[4]}
                             />
@@ -146,17 +174,17 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                         <div>
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="bg-[#ec5b13]/10 text-[#ec5b13] text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">
-                                    {room.roomType || 'Lựa chọn hàng đầu'}
+                                    {typeName}
                                 </span>
                                 <div className="flex text-yellow-400">
                                     {[...Array(5)].map((_, i) => (
-                                        <span key={i} className={`material-symbols-outlined ${i < Math.floor(room.rating || 5) ? 'fill-[1]' : ''}`}>
-                                            {i < Math.floor(room.rating || 5) ? 'star' : (room.rating % 1 !== 0 && i === Math.floor(room.rating) ? 'star_half' : 'star')}
+                                        <span key={i} className={`material-symbols-outlined ${i < Math.floor(safeRating) ? 'fill-[1]' : ''}`}>
+                                            {i < Math.floor(safeRating) ? 'star' : (safeRating % 1 !== 0 && i === Math.floor(safeRating) ? 'star_half' : 'star')}
                                         </span>
                                     ))}
                                 </div>
                             </div>
-                            <h2 className="text-3xl font-extrabold text-slate-900">{room.name || (room as any).roomNumber}</h2>
+                            <h2 className="text-3xl font-extrabold text-slate-900">{roomName}</h2>
                             <p className="text-slate-500 mt-2 flex items-center gap-1">
                                 <span className="material-symbols-outlined text-base">location_on</span>
                                 Vinh, Nghệ An
@@ -169,25 +197,25 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                             <h3 className="text-xl font-bold mb-4">Mô tả phòng</h3>
                             <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                                 <p className="text-slate-600 leading-relaxed whitespace-pre-line text-sm">
-                                    {room.description}
+                                    {roomTypeObj.description || "Tận hưởng không gian nghỉ ngơi tuyệt vời được thiết kế tinh tế và hiện đại. Mang đến sự thoải mái tối đa cho quý khách trong suốt thời gian lưu trú."}
                                 </p>
                                 <div className="mt-4 grid grid-cols-2 gap-4 border-t pt-4">
                                     <div className="flex items-center gap-2">
                                         <span className="material-symbols-outlined text-gray-400">square_foot</span>
-                                        <span className="text-sm font-medium text-gray-600">Diện tích: {room.size}m²</span>
+                                        <span className="text-sm font-medium text-gray-600">Diện tích: {roomTypeObj.size || '35'}m²</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="material-symbols-outlined text-gray-400">king_bed</span>
-                                        <span className="text-sm font-medium text-gray-600">Giường: {room.bedType}</span>
+                                        <span className="text-sm font-medium text-gray-600">Giường: {roomTypeObj.bedType || 'King / Twin'}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="material-symbols-outlined text-gray-400">group</span>
-                                        <span className="text-sm font-medium text-gray-600">Sức chứa: {room.capacity || 2} người</span>
+                                        <span className="text-sm font-medium text-gray-600">Sức chứa: {roomTypeObj.capacity || 2} người</span>
                                     </div>
-                                    {room.view && (
+                                    {roomTypeObj.view && (
                                         <div className="flex items-center gap-2">
                                             <span className="material-symbols-outlined text-gray-400">visibility</span>
-                                            <span className="text-sm font-medium text-gray-600">Hướng: {room.view}</span>
+                                            <span className="text-sm font-medium text-gray-600">Hướng: {roomTypeObj.view}</span>
                                         </div>
                                     )}
                                 </div>
@@ -237,41 +265,9 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                             </div>
                         </section>
 
-                        {/* Phần Đánh giá của khách hàng */}
-                        <section className="border-t border-slate-200 pt-6">
-
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold">Đánh giá khách hàng</h3>
-                                <div className="flex items-center gap-2">
-                                    <div className="bg-[#003580] text-white font-bold p-2 rounded-lg text-lg">{(room.rating || 5).toFixed(1)}</div>
-                                    <div>
-                                        <p className="text-sm font-bold leading-tight">
-                                            {room.rating >= 9 ? 'Xuất sắc' : room.rating >= 8 ? 'Rất tốt' : 'Hài lòng'}
-                                        </p>
-                                        <p className="text-xs text-slate-500">{new Intl.NumberFormat().format(room.reviewCount || 0)} đánh giá</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div className="p-5 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center font-bold text-[#003580]">
-                                                <span className="material-symbols-outlined">person</span>
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-sm">Khách hàng</p>
-                                                <p className="text-[10px] text-slate-400">Đã trải nghiệm thực tế</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 font-bold text-xs">
-                                            <span className="material-symbols-outlined text-xs fill-[1]">star</span>
-                                            {(room.rating || 5).toFixed(1)}
-                                        </div>
-                                    </div>
-                                    <p className="text-sm text-slate-600 italic">"Không gian nghỉ ngơi tuyệt vời, phòng sạch sẽ và đầy đủ các trang thiết bị hiện đại. Dịch vụ rất đáng đồng tiền."</p>
-                                </div>
-                            </div>
+                        {/* Phần Đánh giá của khách hàng (Dynamic) */}
+                        <section className="border-t border-slate-200 pt-10">
+                            <CommentSection roomTypeId={roomTypeObj._id || room._id} />
                         </section>
                     </div>
 
@@ -283,16 +279,12 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                                 <div className="bg-[#003580] p-5 text-white">
                                     <p className="text-xs uppercase tracking-widest opacity-80 mb-1">Giá mỗi {priceUnit}</p>
                                     <div className="flex items-baseline gap-2">
-                                        <span className="text-3xl font-black">{new Intl.NumberFormat('vi-VN').format(room.price)}₫</span>
-                                        {room.originalPrice && room.originalPrice > room.price && (
-                                            <span className="text-sm line-through opacity-60 decoration-white/50">{new Intl.NumberFormat('vi-VN').format(room.originalPrice)}₫</span>
-                                        )}
+                                        <span className="text-3xl font-black">{new Intl.NumberFormat('vi-VN').format(basePrice)}₫</span>
+                                        <span className="text-sm line-through opacity-60 decoration-white/50">{new Intl.NumberFormat('vi-VN').format(basePrice * 1.2)}₫</span>
                                     </div>
-                                    {room.originalPrice && room.originalPrice > room.price && (
-                                        <div className="mt-2 inline-block bg-[#ec5b13] text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">
-                                            Giảm {Math.round(((room.originalPrice - room.price) / room.originalPrice) * 100)}% chỉ hôm nay
-                                        </div>
-                                    )}
+                                    <div className="mt-2 inline-block bg-[#ec5b13] text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">
+                                        Đang có ưu đãi hấp dẫn
+                                    </div>
                                 </div>
                                 <div className="p-6 space-y-6">
                                     <div className="space-y-3">
@@ -300,7 +292,7 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                                         <div className="flex items-center justify-between">
                                             <span className="font-bold text-slate-900 text-sm">Tổng cộng (1 {priceUnit})</span>
                                             <div className="text-right">
-                                                <p className="text-2xl font-black text-[#ec5b13]">{new Intl.NumberFormat('vi-VN').format(room.price)}₫</p>
+                                                <p className="text-2xl font-black text-[#ec5b13]">{new Intl.NumberFormat('vi-VN').format(basePrice)}₫</p>
                                                 <p className="text-[10px] text-slate-400">Bao gồm tất cả thuế & phí</p>
                                             </div>
                                         </div>
@@ -318,8 +310,8 @@ const Viewdetails: React.FC<ViewdetailsProps> = ({ room, onClose }) => {
                                     <button
                                         onClick={handleBookingClick}
                                         className={`w-full font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider ${isLoggedIn
-                                                ? 'bg-[#ec5b13] hover:bg-[#d44d0b] text-white shadow-orange-100 active:scale-95'
-                                                : 'bg-slate-800 hover:bg-slate-700 text-white active:scale-95'
+                                            ? 'bg-[#ec5b13] hover:bg-[#d44d0b] text-white shadow-orange-100 active:scale-95'
+                                            : 'bg-slate-800 hover:bg-slate-700 text-white active:scale-95'
                                             }`}
                                     >
                                         {isLoggedIn ? 'Tiến hành đặt phòng' : 'Đăng nhập để tiếp tục'}

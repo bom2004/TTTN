@@ -6,12 +6,14 @@ import {
     getBookingById, 
     updateBookingStatus,
     deleteBooking,
-    cancelBooking
+    cancelBooking,
+    assignAndConfirmBooking
 } from "../controllers/bookingController.ts";
 
 const bookingRouter = express.Router();
 
 bookingRouter.post("/", createBooking);
+bookingRouter.post("/:id/assign-and-confirm", assignAndConfirmBooking);
 bookingRouter.get("/", getAllBookings);
 bookingRouter.get("/user/:userId", getUserBookings);
 bookingRouter.get("/:id", getBookingById);

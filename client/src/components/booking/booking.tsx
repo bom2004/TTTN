@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'react-toastify';
-import { Room, ApiResponse, UserData } from '../../types';
+import { Room } from '../../types';
+import { useAppDispatch, useAppSelector } from '../../lib/redux/store';
+import { selectAuthUser } from '../../lib/redux/reducers/auth';
+import { searchRoomsThunk } from '../../lib/redux/reducers/room';
+import { fetchAllPromotionsThunk } from '../../lib/redux/reducers/promotion';
 
 const Booking: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const backendUrl = "http://localhost:3000";
+    const dispatch = useAppDispatch();
 
-    // Lấy thông tin phòng và người dùng
-    const room = location.state?.room as Room;
-    const userDataRaw = localStorage.getItem('userData');
-    const userData: UserData | null = userDataRaw ? JSON.parse(userDataRaw) : null;
+    const room = location.state?.room as any;
+    const userData = useAppSelector(selectAuthUser);
+    const { promotions } = useAppSelector(state => state.promotion);
 
     // State cho form và đặt phòng
     const [customerInfo, setCustomerInfo] = useState({
@@ -27,13 +29,17 @@ const Booking: React.FC = () => {
     const [specialRequests, setSpecialRequests] = useState(location.state?.specialRequests || '');
 
     // State cho ngày đặt phòng
-    const [checkIn, setCheckIn] = useState<string>(location.state?.checkIn || new Date().toISOString().split('T')[0]);
-    const [checkOut, setCheckOut] = useState<string>(location.state?.checkOut || new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0]);
-    const [numNights, setNumNights] = useState<number>(location.state?.numNights || 1);
-    const [checkInTime, setCheckInTime] = useState<string>(location.state?.checkInTime || 'Tôi chưa biết');
-    const [isRoomAvailable, setIsRoomAvailable] = useState<boolean>(true);
-    const [checkingAvailability, setCheckingAvailability] = useState<boolean>(false);
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+    const tomorrowLocal = new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('en-CA');
 
+    const [checkIn, setCheckIn] = useState<string>(location.state?.checkIn || todayLocal);
+    const [checkOut, setCheckOut] = useState<string>(location.state?.checkOut || tomorrowLocal);
+    const [availableRoomsCount, setAvailableRoomsCount] = useState<number>((room as any)?.availableRooms || 0);
+    const [roomQuantity, setRoomQuantity] = useState<number>(1); // State số lượng phòng
+    const [checkInTime, setCheckInTime] = useState<string>(location.state?.checkInTime || 'Tôi chưa biết');
+    const [checkingAvailability, setCheckingAvailability] = useState<boolean>(true);
+    
+    // Biến phái sinh (Derived state) - Không cần quản lý bằng State riêng để tránh render thừa
     const calculateNights = (start: string, end: string) => {
         const d1 = new Date(start);
         const d2 = new Date(end);
@@ -41,54 +47,39 @@ const Booking: React.FC = () => {
         const nights = Math.ceil(diff / (1000 * 60 * 60 * 24));
         return nights > 0 ? nights : 1;
     };
+    const numNights = calculateNights(checkIn, checkOut);
+    const isRoomAvailable = availableRoomsCount >= roomQuantity;
+    const maxQuantity = Math.max(1, Math.min(availableRoomsCount, 10));
 
-    useEffect(() => {
-        setNumNights(calculateNights(checkIn, checkOut));
-    }, [checkIn, checkOut]);
 
-    // Kiểm tra tính khả dụng (trống) của phòng trong thời gian đã chọn
+    // Chỉ kiểm tra API khi ngày hoặc phòng thay đổi. Số lượng (Quantity) kiểm tra Local.
     useEffect(() => {
         const checkAvailability = async () => {
             if (!room || !checkIn || !checkOut) return;
-
             setCheckingAvailability(true);
             try {
-                const response = await axios.get(`${backendUrl}/api/rooms/search`, {
-                    params: {
-                        roomId: room._id || (room as any).id,
-                        checkIn,
-                        checkOut
-                    }
-                });
+                const rtId = room.roomTypeId?._id || room.roomTypeId || room._id || (room as any).id;
+                const results = await dispatch(searchRoomsThunk({
+                    roomId: rtId,
+                    checkIn,
+                    checkOut
+                })).unwrap();
 
-                if (response.data.success && response.data.data.length > 0) {
-                    const foundRoom = response.data.data[0];
-                    setIsRoomAvailable(foundRoom.availableRooms > 0);
+                if (results && results.length > 0) {
+                    setAvailableRoomsCount(results[0].availableRooms || 0);
                 } else {
-                    setIsRoomAvailable(false);
+                    setAvailableRoomsCount(0);
                 }
             } catch (error) {
                 console.error("Error checking availability:", error);
-                setIsRoomAvailable(true);
+                setAvailableRoomsCount(1);
             } finally {
                 setCheckingAvailability(false);
             }
         };
 
         checkAvailability();
-    }, [checkIn, checkOut, room, backendUrl]);
-
-    const getDatesInRange = (startDate: string, endDate: string) => {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        const dates = [];
-        let current = new Date(start);
-        while (current <= end) {
-            dates.push(new Date(current));
-            current.setDate(current.getDate() + 1);
-        }
-        return dates;
-    };
+    }, [checkIn, checkOut, room?._id, dispatch]);
 
     const timeSlots = [
         'Tôi chưa biết', '00:00 - 01:00', '01:00 - 02:00', '02:00 - 03:00',
@@ -100,25 +91,25 @@ const Booking: React.FC = () => {
         '23:00 - 00:00'
     ];
 
-    const calculateGeniusLevel = (totalRecharged: number): number => {
-        if (!totalRecharged || totalRecharged < 100000) return 0;
-        if (totalRecharged < 500000) return 1;
-        const level = Math.floor(totalRecharged / 500000) + 1;
-        return Math.min(level, 10);
+    const getMembershipLevel = (totalRecharged: number): number => {
+        if (!totalRecharged || totalRecharged < 10000000) return 0; // Silver
+        if (totalRecharged < 50000000) return 1; // Gold
+        if (totalRecharged < 150000000) return 2; // Diamond
+        return 3; // Platinum
     };
 
-    const userGeniusLevel = userData ? calculateGeniusLevel(userData.totalRecharged || 0) : 0;
+    const getMembershipName = (level: number) => ['Silver', 'Gold', 'Diamond', 'Platinum'][level] || 'Silver';
 
-    const totalAmount = (room?.price || 0) * numNights;
+    const userMembershipLevel = userData ? getMembershipLevel(userData.totalRecharged || 0) : 0;
+
+    const totalAmount = ((room?.price || room?.basePrice) || 0) * numNights * roomQuantity;
     const finalAmount = totalAmount - discountInfo.amount;
 
-    // Xác định đơn vị tính giá dựa trên loại phòng (ngày/đêm/tiếng/buổi)
     const getPriceUnit = () => {
-        const typeName = (room?.roomType || "").toString().toLowerCase();
+        const typeName = (room?.roomType || room?.name || "").toString().toLowerCase();
         if (typeName.includes('karaoke')) return 'tiếng';
         if (typeName.includes('tiệc')) return 'buổi';
-        if (typeName.includes('thường') || typeName.includes('vip')) return 'ngày';
-        return 'đêm';
+        return 'ngày';
     };
 
     const priceUnit = getPriceUnit();
@@ -138,77 +129,72 @@ const Booking: React.FC = () => {
         }
         setIsApplyingCode(true);
         try {
-            const response = await axios.get<ApiResponse<any>>(`${backendUrl}/api/promotions`);
-            if (response.data.success && response.data.data) {
-                const now = new Date();
-                const promo = response.data.data.find((p: any) => p.code === promotionCode.toUpperCase().trim());
+            await dispatch(fetchAllPromotionsThunk()).unwrap();
+            const now = new Date();
+            const promo = promotions.find((p: any) => p.code === promotionCode.toUpperCase().trim());
 
-                if (!promo || promo.status !== 'active') {
-                    setDiscountInfo({ percent: 0, amount: 0 });
-                    toast.error("Mã giảm giá không hợp lệ");
-                    return;
-                }
-
-                const startDate = new Date(promo.startDate);
-                const endDate = new Date(promo.endDate);
-
-                if (now < startDate) {
-                    setDiscountInfo({ percent: 0, amount: 0 });
-                    toast.error(`Mã giảm giá này bắt đầu có hiệu lực từ ngày ${startDate.toLocaleDateString('vi-VN')}`);
-                    return;
-                }
-
-                if (now > endDate) {
-                    setDiscountInfo({ percent: 0, amount: 0 });
-                    toast.error("Mã giảm giá đã hết hạn");
-                    return;
-                }
-
-                // Kiểm tra cấp độ khách hàng thân thiết (Genius)
-                if (promo.minGeniusLevel > userGeniusLevel) {
-                    setDiscountInfo({ percent: 0, amount: 0 });
-                    toast.error(`Mã này yêu cầu cấp Genius ${promo.minGeniusLevel}. Cấp hiện tại của bạn là ${userGeniusLevel}.`);
-                    return;
-                }
-
-                // Kiểm tra giới hạn số lượt sử dụng của mã giảm giá
-                if (promo.usageLimit > 0 && promo.usedCount >= promo.usageLimit) {
-                    setDiscountInfo({ percent: 0, amount: 0 });
-                    toast.error("Mã giảm giá này đã hết lượt sử dụng");
-                    return;
-                }
-
-                // Kiểm tra xem người dùng hiện tại đã sử dụng mã này chưa
-                if (promo.usedBy && userData && promo.usedBy.includes(userData._id || userData.id)) {
-                    setDiscountInfo({ percent: 0, amount: 0 });
-                    toast.error("Bạn đã sử dụng mã này cho đơn đặt phòng trước đó");
-                    return;
-                }
-
-                // Kiểm tra xem mã giảm giá có áp dụng cho loại phòng này không
-                if (promo.roomTypes && promo.roomTypes.length > 0) {
-                    const isApplicableRoom = promo.roomTypes.some((rt: any) => {
-                        if (typeof rt === 'string') return rt === room.roomType;
-                        return rt.name === room.roomType || rt._id === room.roomType;
-                    });
-
-                    if (!isApplicableRoom) {
-                        setDiscountInfo({ percent: 0, amount: 0 });
-                        toast.error("Mã này không áp dụng cho loại phòng bạn đã chọn");
-                        return;
-                    }
-                }
-
-                if (totalAmount < promo.minOrderValue) {
-                    setDiscountInfo({ percent: 0, amount: 0 });
-                    toast.error(`Mã này yêu cầu đơn hàng tối thiểu ${new Intl.NumberFormat('vi-VN').format(promo.minOrderValue)}₫`);
-                    return;
-                }
-
-                const amount = (totalAmount * promo.discountPercent) / 100;
-                setDiscountInfo({ percent: promo.discountPercent, amount });
-                toast.success(`Đã áp dụng mã giảm giá ${promo.discountPercent}%`);
+            if (!promo || promo.status !== 'active') {
+                setDiscountInfo({ percent: 0, amount: 0 });
+                toast.error("Mã giảm giá không hợp lệ");
+                return;
             }
+
+            const startDate = new Date(promo.startDate);
+            const endDate = new Date(promo.endDate);
+
+            if (now < startDate) {
+                setDiscountInfo({ percent: 0, amount: 0 });
+                toast.error(`Mã giảm giá này bắt đầu có hiệu lực từ ngày ${startDate.toLocaleDateString('vi-VN')}`);
+                return;
+            }
+
+            if (now > endDate) {
+                setDiscountInfo({ percent: 0, amount: 0 });
+                toast.error("Mã giảm giá đã hết hạn");
+                return;
+            }
+
+            if (promo.minGeniusLevel > userMembershipLevel) {
+                setDiscountInfo({ percent: 0, amount: 0 });
+                toast.error(`Mã ưu đãi này chỉ dành cho hạng ${getMembershipName(promo.minGeniusLevel)} trở lên. Hạng của bạn là ${getMembershipName(userMembershipLevel)}.`);
+                return;
+            }
+
+            if (promo.usageLimit > 0 && promo.usedCount >= promo.usageLimit) {
+                setDiscountInfo({ percent: 0, amount: 0 });
+                toast.error("Mã giảm giá này đã hết lượt sử dụng");
+                return;
+            }
+
+            if (promo.usedBy && userData && promo.usedBy.includes(userData._id || userData.id)) {
+                setDiscountInfo({ percent: 0, amount: 0 });
+                toast.error("Bạn đã sử dụng mã này cho đơn đặt phòng trước đó");
+                return;
+            }
+
+            if (promo.roomTypes && promo.roomTypes.length > 0) {
+                const isApplicableRoom = promo.roomTypes.some((rt: any) => {
+                    const roomIdentifier = room.roomType || room.name;
+                    if (typeof rt === 'string') return rt === roomIdentifier;
+                    return rt.name === roomIdentifier || rt._id === roomIdentifier;
+                });
+
+                if (!isApplicableRoom) {
+                    setDiscountInfo({ percent: 0, amount: 0 });
+                    toast.error("Mã này không áp dụng cho loại phòng bạn đã chọn");
+                    return;
+                }
+            }
+
+            if (totalAmount < promo.minOrderValue) {
+                setDiscountInfo({ percent: 0, amount: 0 });
+                toast.error(`Mã này yêu cầu đơn hàng tối thiểu ${new Intl.NumberFormat('vi-VN').format(promo.minOrderValue)}₫`);
+                return;
+            }
+
+            const amount = (totalAmount * promo.discountPercent) / 100;
+            setDiscountInfo({ percent: promo.discountPercent, amount });
+            toast.success(`Đã áp dụng mã giảm giá ${promo.discountPercent}%`);
         } catch (error) {
             setDiscountInfo({ percent: 0, amount: 0 });
             toast.error("Lỗi khi kiểm tra mã giảm giá");
@@ -235,7 +221,8 @@ const Booking: React.FC = () => {
             promotionCode,
             specialRequests,
             priceUnit,
-            checkInTime
+            checkInTime,
+            roomQuantity // Gửi thêm thuộc tính này
         };
 
         navigate('/payment', { state: paymentState });
@@ -317,14 +304,17 @@ const Booking: React.FC = () => {
                                     <input
                                         className="w-full rounded-xl border-slate-200 focus:border-[#003580] focus:ring-[#003580] h-14 font-bold cursor-pointer"
                                         type="date"
-                                        min={new Date().toISOString().split('T')[0]}
+                                        min={todayLocal}
                                         value={checkIn}
                                         onChange={(e) => {
-                                            setCheckIn(e.target.value);
-                                            if (new Date(e.target.value) >= new Date(checkOut)) {
-                                                const nextDay = new Date(e.target.value);
-                                                nextDay.setDate(nextDay.getDate() + 1);
-                                                setCheckOut(nextDay.toISOString().split('T')[0]);
+                                            const val = e.target.value;
+                                            setCheckIn(val);
+                                            const dIn = new Date(val);
+                                            const dOut = new Date(checkOut);
+                                            if (dOut <= dIn) {
+                                                const nextDay = new Date(dIn);
+                                                nextDay.setDate(dIn.getDate() + 1);
+                                                setCheckOut(nextDay.toLocaleDateString('en-CA'));
                                             }
                                         }}
                                     />
@@ -334,14 +324,34 @@ const Booking: React.FC = () => {
                                     <input
                                         className="w-full rounded-xl border-slate-200 focus:border-[#003580] focus:ring-[#003580] h-14 font-bold cursor-pointer"
                                         type="date"
-                                        min={new Date(new Date(checkIn).getTime() + 86400000).toISOString().split('T')[0]}
+                                        min={new Date(new Date(checkIn).getTime() + 86400000).toLocaleDateString('en-CA')}
                                         value={checkOut}
                                         onChange={(e) => setCheckOut(e.target.value)}
                                     />
                                 </div>
+                                <div className="col-span-2 px-4 py-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-emerald-600 text-sm">room_preferences</span>
+                                    <span className="text-[13px] font-bold text-emerald-700">
+                                        Hiện tại loại phòng này đang còn <span className="font-black text-lg mx-1">{availableRoomsCount}</span> phòng trống trong thời gian này.
+                                    </span>
+                                </div>
                                 <div className="col-span-2 p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
                                     <span className="text-sm font-bold text-[#003580]">Tổng thời gian lưu trú:</span>
                                     <span className="text-sm font-black text-[#003580]">{numNights} {priceUnit}</span>
+                                </div>
+                                <div className="col-span-2 p-4 bg-blue-50/50 rounded-xl border border-blue-100/50 flex items-center justify-between">
+                                    <span className="text-sm font-bold text-[#003580]">Số lượng phòng:</span>
+                                    <div className="flex items-center gap-4">
+                                        <button 
+                                            onClick={(e) => { e.preventDefault(); setRoomQuantity(Math.max(1, roomQuantity - 1)) }}
+                                            className="w-8 h-8 rounded bg-white border border-[#003580] text-[#003580] font-bold flex items-center justify-center hover:bg-blue-50 transition-colors"
+                                        >-</button>
+                                        <span className="text-sm font-black text-[#003580] w-4 text-center">{roomQuantity}</span>
+                                        <button 
+                                            onClick={(e) => { e.preventDefault(); setRoomQuantity(Math.min(maxQuantity, roomQuantity + 1)) }}
+                                            className="w-8 h-8 rounded bg-white border border-[#003580] text-[#003580] font-bold flex items-center justify-center hover:bg-blue-50 transition-colors"
+                                        >+</button>
+                                    </div>
                                 </div>
                                 {!isRoomAvailable && !checkingAvailability && (
                                     <div className="col-span-2 p-4 bg-rose-50 rounded-xl border border-rose-100 flex items-center gap-3 animate-pulse">
@@ -391,7 +401,7 @@ const Booking: React.FC = () => {
                                                             <span className="material-symbols-outlined text-sm text-[#003580]">event_available</span>
                                                         </div>
                                                         <div className="grid grid-cols-3 gap-2 text-center">
-                                                            {timeSlots.map(time => (
+                                                            {timeSlots.map((time: string) => (
                                                                 <button
                                                                     key={time}
                                                                     type="button"
@@ -451,7 +461,7 @@ const Booking: React.FC = () => {
                                 />
                                 <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
                                     <h3 className="text-white font-black text-xl">{room.name}</h3>
-                                    <p className="text-blue-200 text-xs font-bold uppercase tracking-widest">{room.roomType}</p>
+                                    <p className="text-blue-200 text-xs font-bold uppercase tracking-widest">{room.roomType || 'Phòng'}</p>
                                 </div>
                             </div>
 
@@ -471,7 +481,7 @@ const Booking: React.FC = () => {
                                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Chi tiết giá</h4>
 
                                     <div className="flex justify-between items-center">
-                                        <span className="text-sm font-medium text-slate-600">Giá phòng ({numNights} {priceUnit})</span>
+                                        <span className="text-sm font-medium text-slate-600">Giá phòng ({roomQuantity} phòng x {numNights} {priceUnit})</span>
                                         <span className="font-bold">{new Intl.NumberFormat('vi-VN').format(totalAmount)}₫</span>
                                     </div>
 
@@ -519,7 +529,7 @@ const Booking: React.FC = () => {
                                                     : 'bg-[#ec5b13] hover:bg-[#d44d0b] text-white shadow-orange-100 active:scale-95'
                                                 }`}
                                         >
-                                            {checkingAvailability ? 'Đang kiểm tra...' : !isRoomAvailable ? 'Phòng đã hết chỗ' : 'Xác nhận và Thanh toán'}
+                                            {checkingAvailability ? 'Đang kiểm tra...' : !isRoomAvailable ? `Chỉ còn ${(room as any)?.availableRooms || 0} phòng trống` : 'Xác nhận và Thanh toán'}
                                             <span className="material-symbols-outlined font-black">
                                                 {checkingAvailability ? 'sync' : !isRoomAvailable ? 'block' : 'arrow_forward'}
                                             </span>

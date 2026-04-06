@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { UserData, ApiResponse } from '../types';
+import { useAppDispatch, useAppSelector } from '../lib/redux/store';
+import { selectAuthToken, selectAuthUser, logout } from '../lib/redux/reducers/auth';
+import { getProfileThunk } from '../lib/redux/reducers/auth/thunks';
 
 const Navbar: React.FC = () => {
     const navLinks = [
@@ -12,34 +13,31 @@ const Navbar: React.FC = () => {
         { name: 'Liên hệ', path: '/contact' },
     ];
 
+    const dispatch = useAppDispatch();
+    const token = useAppSelector(selectAuthToken);
+    const userData = useAppSelector(selectAuthUser);
+
     const [isScrolled, setIsScrolled] = useState<boolean>(false);
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-    const [userData, setUserData] = useState<UserData | null>(
-        localStorage.getItem('userData') ? JSON.parse(localStorage.getItem('userData')!) : null
-    );
     const [searchQuery, setSearchQuery] = useState<string>('');
 
     const navigate = useNavigate();
     const location = useLocation();
-    const backendUrl = "http://localhost:3000";
 
-    const logout = (): void => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userData');
-        setToken(null);
-        setUserData(null);
+    const handleLogout = (): void => {
+        dispatch(logout());
         navigate('/login');
     }
+
     // xử lý hạng thành viên
-    const calculateGeniusLevel = (totalRecharged: number): number => {
-        if (!totalRecharged || totalRecharged < 100000) return 0;
-        if (totalRecharged < 500000) return 1;
-        const level = Math.floor(totalRecharged / 500000) + 1;
-        return Math.min(level, 10);
+    const getMembershipInfo = (totalRecharged: number) => {
+        if (!totalRecharged || totalRecharged < 10000000) return { label: 'Silver', color: 'text-gray-400', bg: 'bg-gray-100', icon: 'stars' };
+        if (totalRecharged < 50000000) return { label: 'Gold', color: 'text-yellow-500', bg: 'bg-yellow-50', icon: 'workspace_premium' };
+        if (totalRecharged < 150000000) return { label: 'Diamond', color: 'text-blue-500', bg: 'bg-blue-50', icon: 'diamond' };
+        return { label: 'Platinum', color: 'text-purple-500', bg: 'bg-purple-50', icon: 'crown' };
     };
 
-    const geniusLevel = userData ? calculateGeniusLevel(userData.totalRecharged || 0) : 0;
+    const membership = userData ? getMembershipInfo(userData.totalRecharged || 0) : { label: 'Member', color: 'text-gray-300', bg: 'bg-transparent', icon: 'person' };
 
     useEffect(() => {
         const handleScroll = (): void => {
@@ -47,44 +45,14 @@ const Navbar: React.FC = () => {
         };
         window.addEventListener("scroll", handleScroll);
 
-        const syncUser = async (): Promise<void> => {
-            const currentToken = localStorage.getItem('token');
-            const storedData = localStorage.getItem('userData');
-
-            if (currentToken && storedData) {
-                try {
-                    const parsedData: UserData = JSON.parse(storedData);
-                    const response = await axios.get<ApiResponse<UserData>>(`${backendUrl}/api/user/profile/${parsedData.id || parsedData._id}`);
-                    const dbUser = response.data.data || response.data.user;
-                    if (response.data.success && dbUser) {
-                        const updatedData: UserData = {
-                            id: dbUser._id || dbUser.id,
-                            full_name: dbUser.full_name,
-                            email: dbUser.email,
-                            phone: dbUser.phone,
-                            role: dbUser.role,
-                            avatar: dbUser.avatar,
-                            balance: dbUser.balance || 0,
-                            totalRecharged: dbUser.totalRecharged || 0
-                        };
-                        setUserData(updatedData);
-                        localStorage.setItem('userData', JSON.stringify(updatedData));
-
-                    } else {
-                        setUserData(parsedData);
-                    }
-                } catch (error) {
-                    console.error("Error syncing user:", error);
-                    setUserData(JSON.parse(storedData));
-                }
-            } else {
-                setUserData(null);
+        if (token && userData) {
+            const uid = userData.id || userData._id;
+            if (uid) {
+                dispatch(getProfileThunk(uid)).unwrap().catch(err => {
+                    console.error("Error syncing user:", err);
+                });
             }
-            setToken(currentToken);
-        };
-
-        syncUser();
-        window.addEventListener('storage', syncUser);
+        }
 
         if (!document.getElementById('material-symbols')) {
             const link = document.createElement('link');
@@ -96,9 +64,8 @@ const Navbar: React.FC = () => {
 
         return () => {
             window.removeEventListener("scroll", handleScroll);
-            window.removeEventListener('storage', syncUser);
         };
-    }, [location.pathname]);
+    }, [location.pathname, dispatch]);
 
     return (
         <header className="bg-[#003580] text-white pt-5 pb-3 px-4 md:px-10 sticky top-0 z-[100] shadow-xl">
@@ -162,14 +129,10 @@ const Navbar: React.FC = () => {
                                 </div>
                                 <div className="hidden sm:block">
                                     <div className="text-xs font-black text-white leading-tight uppercase tracking-wide">{userData.full_name.split(' ').pop()}</div>
-                                    {geniusLevel > 0 ? (
-                                        <div className="flex items-center gap-1 mt-0.5 bg-[#febb02]/10 w-fit px-1.5 py-0.5 rounded">
-                                            <span className="text-[10px] font-black text-[#febb02] uppercase tracking-widest">Genius Lvl {geniusLevel}</span>
-                                            <span className="material-symbols-outlined text-[12px] text-[#febb02]">workspace_premium</span>
-                                        </div>
-                                    ) : (
-                                        <div className="text-[10px] font-bold text-gray-300 mt-0.5">Member</div>
-                                    )}
+                                    <div className={`flex items-center gap-1 mt-0.5 ${membership.bg} w-fit px-1.5 py-0.5 rounded`}>
+                                        <span className={`text-[10px] font-black ${membership.color} uppercase tracking-widest`}>{membership.label}</span>
+                                        {membership.label !== 'Member' && <span className={`material-symbols-outlined text-[12px] ${membership.color}`}>{membership.icon}</span>}
+                                    </div>
                                 </div>
                                 <span className="material-symbols-outlined text-white/50 group-hover:rotate-180 transition-transform duration-300">expand_more</span>
                             </div>
@@ -194,13 +157,12 @@ const Navbar: React.FC = () => {
                                             <span className="material-symbols-outlined text-gray-400 group-hover/item:text-[#006ce4]">luggage</span>
                                             Đặt chỗ của tôi
                                         </div>
-                                        <span className="bg-blue-100 text-[#006ce4] px-2 py-0.5 rounded text-[10px] font-black">2</span>
                                     </button>
 
-                                    {(userData.role === 'hotelOwner' || userData.role === 'admin' || userData.role === 'staff') && (
+                                    {['hotelOwner', 'admin', 'staff', 'receptionist', 'accountant'].includes(userData.role) && (
                                         <div className="px-5 py-2 mt-2">
                                             <button
-                                                onClick={() => navigate(userData.role === 'staff' ? '/staff' : '/owner')}
+                                                onClick={() => navigate((userData.role === 'admin' || userData.role === 'hotelOwner') ? '/owner' : '/staff')}
                                                 className='w-full bg-[#003580] text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#002a6b] transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-900/20'
                                             >
                                                 <span className="material-symbols-outlined text-lg">dashboard</span>
@@ -211,7 +173,7 @@ const Navbar: React.FC = () => {
 
                                     <div className="h-px bg-gray-100 my-2"></div>
 
-                                    <button onClick={logout} className='w-full text-left px-5 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-4 transition-colors'>
+                                    <button onClick={handleLogout} className='w-full text-left px-5 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-4 transition-colors'>
                                         <span className="material-symbols-outlined text-lg">logout</span>
                                         Đăng xuất
                                     </button>

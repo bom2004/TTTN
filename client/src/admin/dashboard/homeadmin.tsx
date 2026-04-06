@@ -1,193 +1,257 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { assets } from "../../assets/assets";
-import { ApiResponse } from "../../types";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, Legend, AreaChart, Area
+} from 'recharts';
+import { 
+  Bed, Calendar, 
+  DollarSign, 
+  Download, Filter, ChevronRight, Activity 
+} from "lucide-react";
+import Skeleton from "../../utils/Skeleton";
+import { exportRevenueReport } from "../../utils/exportToExcel";
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import ReportPDF from "../../utils/ReportPDF";
 
-interface DashboardStats {
-  totalRevenue: number;
-  totalBookings: number;
-  totalUsers: number;
-  totalRooms: number;
-}
+// Redux
+import { useAppDispatch, useAppSelector } from "../../lib/redux/store";
+import { fetchAdminStatsThunk, selectStatsData, selectStatsLoading } from "../../lib/redux/reducers/stats";
+
+// Colors for Pie Chart
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 const HomeAdmin: React.FC = () => {
-  const backendUrl = "http://localhost:3000";
-  const [stats, setStats] = useState<DashboardStats>({
-    totalRevenue: 0,
-    totalBookings: 0,
-    totalUsers: 0,
-    totalRooms: 0,
-  });
-  const [recentBookings, setRecentBookings] = useState<any[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const data = useAppSelector(selectStatsData);
+  const loading = useAppSelector(selectStatsLoading);
+  const [viewMode, setViewMode] = useState<'month' | 'quarter'>('month');
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-        case 'pending': return { text: 'Chờ duyệt', color: 'bg-amber-50 text-amber-600 border-amber-100' };
-        case 'confirmed': return { text: 'Xác nhận', color: 'bg-blue-50 text-blue-600 border-blue-100' };
-        case 'checked_in': return { text: 'Check-in', color: 'bg-indigo-50 text-indigo-600 border-indigo-100' };
-        case 'checked_out': return { text: 'Check-out', color: 'bg-purple-50 text-purple-600 border-purple-100' };
-        case 'completed': return { text: 'Hoàn thành', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-        case 'cancelled': return { text: 'Đã hủy', color: 'bg-rose-50 text-rose-600 border-rose-100' };
-        default: return { text: status, color: 'bg-gray-50 text-gray-600 border-gray-100' };
+  const handleExportExcel = () => {
+    if (data?.revenueData) {
+      exportRevenueReport(data.revenueData);
     }
   };
 
   useEffect(() => {
-    const fetchStats = async (): Promise<void> => {
-      try {
-        const [usersRes, roomsRes, bookingsRes] = await Promise.all([
-          axios.get<ApiResponse<any[]>>(`${backendUrl}/api/user/all-users`),
-          axios.get<ApiResponse<any[]>>(`${backendUrl}/api/rooms`),
-          axios.get<ApiResponse<any[]>>(`${backendUrl}/api/bookings`)
-        ]);
+    dispatch(fetchAdminStatsThunk(viewMode));
+  }, [dispatch, viewMode]);
 
-        const allBookings = bookingsRes.data.success ? (bookingsRes.data.data || []) : [];
-        const totalRev = allBookings.reduce((sum, b: any) => sum + (b.finalAmount || 0), 0);
-
-        setStats({
-          totalRevenue: totalRev,
-          totalBookings: allBookings.length,
-          totalUsers: usersRes.data.success ? (usersRes.data.data?.length || 0) : 0,
-          totalRooms: roomsRes.data.success ? (roomsRes.data.data?.length || 0) : 0,
-        });
-
-        // Set top 4 recent bookings
-        setRecentBookings(allBookings.sort((a: any, b: any) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        ).slice(0, 4));
-
-      } catch (error) {
-        console.error("Error fetching stats:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
+  if (loading && !data) {
+    return (
+      <div className="p-6 bg-gray-50 min-h-screen">
+        <div className="max-w-[1600px] mx-auto space-y-8">
+          <Skeleton className="h-10 w-64" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Skeleton className="lg:col-span-2 h-[400px] rounded-xl" />
+            <Skeleton className="h-[400px] rounded-xl" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const statCards = [
-    { 
-      title: "Tổng doanh thu", 
-      value: `${new Intl.NumberFormat('vi-VN').format(stats.totalRevenue)}đ`, 
-      icon: assets.totalRevenueIcon, 
-      color: "bg-emerald-50 text-emerald-600",
-      trend: "+12.5% so với tháng trước"
+    {
+      title: "Tổng doanh thu",
+      value: `${new Intl.NumberFormat('vi-VN').format(data?.summary.totalRevenue || 0)}₫`,
+      icon: <DollarSign className="w-5 h-5 text-blue-600" />,
+      trend: "+12.5%",
+      bgColor: "bg-blue-50"
     },
-    { 
-      title: "Tổng lượt đặt", 
-      value: stats.totalBookings.toString(), 
-      icon: assets.totalBookingIcon, 
-      color: "bg-blue-50 text-blue-600",
-      trend: "+8.2% so với tháng trước"
+    {
+      title: "Tổng lượt đặt",
+      value: data?.summary.totalBookings.toString() || "0",
+      icon: <Calendar className="w-5 h-5 text-emerald-600" />,
+      trend: "+8.2%",
+      bgColor: "bg-emerald-50"
     },
-    { 
-      title: "Khách hàng", 
-      value: stats.totalUsers.toString(), 
-      icon: assets.userIcon, 
-      color: "bg-indigo-50 text-indigo-600",
-      trend: "+5.1% so với tháng trước"
+    {
+      title: "Tỷ lệ lấp đầy",
+      value: `${data?.occupancyRate || 0}%`,
+      icon: <Activity className="w-5 h-5 text-amber-600" />,
+      trend: "Hiện tại",
+      bgColor: "bg-amber-50"
     },
-    { 
-      title: "Tổng số phòng", 
-      value: stats.totalRooms.toString(), 
-      icon: assets.homeIcon, 
-      color: "bg-amber-50 text-amber-600",
-      trend: "Ổn định"
+    {
+      title: "Tổng số phòng",
+      value: data?.summary.totalRooms.toString() || "0",
+      icon: <Bed className="w-5 h-5 text-purple-600" />,
+      trend: "Hoạt động",
+      bgColor: "bg-purple-50"
     },
   ];
 
   return (
-    <div className="p-8 bg-[#f5f5f5] min-h-screen font-sans">
+    <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-[1600px] mx-auto">
-        <header className="mb-10">
-          <h1 className="text-3xl font-[900] text-[#003580] tracking-tight">Bảng điều khiển</h1>
-          <p className="text-sm font-medium text-gray-500">Chào mừng trở lại! Dưới đây là tóm tắt hoạt động kinh doanh của bạn.</p>
-        </header>
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Quản trị</h1>
+            <p className="text-gray-500 mt-1 font-medium">Theo dõi hiệu quả kinh doanh của khách sạn trong thời gian thực.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {data && (
+              <PDFDownloadLink 
+                document={<ReportPDF data={data.revenueData} title="Báo cáo Doanh thu Khách sạn" summary={data.summary} />} 
+                fileName="Bao_cao_doanh_thu_luxury.pdf"
+                className="flex items-center gap-2 px-4 py-2 bg-rose-600 rounded-lg text-sm font-semibold text-white hover:bg-rose-700 transition-all shadow-sm shadow-rose-200"
+              >
+                {({ loading }) => (loading ? 'Đang tạo PDF...' : <><Download className="w-4 h-4" /> Xuất PDF</>)}
+              </PDFDownloadLink>
+            )}
+            <button 
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
+            >
+              <Download className="w-4 h-4" /> Xuất Excel
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-lg text-sm font-semibold text-white hover:bg-blue-700 transition-all shadow-sm shadow-blue-200">
+              <Filter className="w-4 h-4" /> Lọc dữ liệu
+            </button>
+          </div>
+        </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {statCards.map((card, index) => (
-            <div key={index} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col items-start group hover:shadow-xl hover:-translate-y-1 transition-all duration-500 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-[#003580]/[0.02] rounded-full -mr-8 -mt-8 group-hover:bg-[#003580]/[0.05] transition-colors"></div>
-              <div className={`w-14 h-14 rounded-2xl ${card.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500 shadow-sm`}>
-                 <span className="material-symbols-outlined text-3xl">
-                    {index === 0 ? 'payments' : index === 1 ? 'calendar_month' : index === 2 ? 'group' : 'bed'}
-                 </span>
-              </div>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">{card.title}</p>
-              <h2 className="text-3xl font-black text-[#003580] mb-4 tracking-tight">{loading ? "..." : card.value}</h2>
-              <div className="mt-auto flex items-center gap-2">
-                <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${card.trend.includes('+') ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-500'}`}>
-                    {card.trend.split(' ')[0]}
+            <div key={index} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-all duration-300 group">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`${card.bgColor} p-3 rounded-xl group-hover:scale-110 transition-transform duration-300`}>
+                  {card.icon}
+                </div>
+                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                  {card.trend}
                 </span>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">so với tháng trước</span>
               </div>
+              <p className="text-sm font-semibold text-gray-400 mb-1">{card.title}</p>
+              <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                {card.value}
+              </h2>
             </div>
           ))}
         </div>
 
-        {/* Charts & Table Section */}
+        {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Chart Placeholder */}
-          <div className="lg:col-span-2 bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-             <div className="flex justify-between items-center mb-10">
-                <div>
-                   <h3 className="text-xl font-black text-[#003580] tracking-tight">Xu hướng doanh thu</h3>
-                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Dữ liệu 7 ngày gần nhất</p>
-                </div>
-                <div className="flex gap-2">
-                    <button className="px-4 py-2 bg-gray-50 text-[#003580] text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-gray-100 transition-all">Tuần</button>
-                    <button className="px-4 py-2 bg-[#003580] text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md">Tháng</button>
-                </div>
-             </div>
-             
-             {/* Simple SVG Chart Representation */}
-             <div className="h-64 w-full relative flex items-end justify-between px-4 pb-8 border-b border-gray-50">
-                {[40, 70, 45, 90, 65, 85, 100].map((h, i) => (
-                    <div key={i} className="w-12 bg-[#003580]/10 rounded-t-xl relative group cursor-pointer" style={{ height: `${h}%` }}>
-                        <div className="absolute inset-0 bg-[#003580] scale-y-0 group-hover:scale-y-100 transition-transform origin-bottom rounded-t-xl duration-500 shadow-lg shadow-blue-500/20"></div>
-                        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-black text-gray-400">T{i+2}</div>
-                    </div>
-                ))}
-             </div>
+          {/* Main Revenue Chart */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Biểu đồ doanh thu</h3>
+                <p className="text-sm text-gray-500 font-medium">{viewMode === 'month' ? 'Thống kê theo 12 tháng gần nhất' : 'Thống kê theo các quý gần nhất'}</p>
+              </div>
+              <div className="flex items-center gap-2 p-1 bg-gray-50 rounded-lg border border-gray-100">
+                <button 
+                  onClick={() => setViewMode('month')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'month' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  Tháng
+                </button>
+                <button 
+                  onClick={() => setViewMode('quarter')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'quarter' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  Quý
+                </button>
+              </div>
+            </div>
+            
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data?.revenueData}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fill: '#9CA3AF', fontSize: 12, fontWeight: 500}}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fill: '#9CA3AF', fontSize: 12, fontWeight: 500}}
+                    tickFormatter={(value) => `${value/1000000}M`}
+                  />
+                  <Tooltip 
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                    formatter={(value: any) => [`${new Intl.NumberFormat('vi-VN').format(value)}₫`, 'Doanh thu']}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="#3B82F6" 
+                    strokeWidth={3}
+                    fillOpacity={1} 
+                    fill="url(#colorRevenue)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          {/* Recent Activity */}
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-             <h3 className="text-xl font-black text-[#003580] tracking-tight mb-8">Yêu cầu đặt phòng mới</h3>
-             <div className="space-y-6">
-                {recentBookings.length > 0 ? (
-                  recentBookings.map((item, i) => (
-                    <div key={i} className="flex items-center gap-4 group cursor-pointer">
-                        <div className="w-12 h-12 rounded-2xl bg-[#003580]/5 text-[#003580] font-black flex items-center justify-center group-hover:bg-[#003580] group-hover:text-white transition-all duration-300">
-                            {item.customerInfo.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-sm font-black text-gray-900 line-clamp-1">{item.customerInfo.name}</p>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                #{item._id.slice(-6).toUpperCase()} · {new Date(item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                        </div>
-                        <div className="flex flex-col items-end">
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border mb-1 ${getStatusLabel(item.status).color}`}>
-                                {getStatusLabel(item.status).text}
-                            </span>
-                            <span className="text-[10px] font-black text-[#003580]">{new Intl.NumberFormat('vi-VN').format(item.finalAmount)}đ</span>
-                        </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-400 font-bold text-center py-10 italic">Chưa có đơn hàng nào.</p>
-                )}
-             </div>
-             <button                     
-                onClick={() => window.location.href = '/owner/bookings'}
-                className="w-full mt-10 py-4 bg-gray-50 text-[#003580] rounded-xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[#003580] hover:text-white transition-all shadow-sm"
-             >
-                Xem tất cả đơn đặt
-             </button>
+          {/* Room Type Distribution */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-gray-900">Cơ cấu loại phòng</h3>
+              <p className="text-sm text-gray-500 font-medium">Tỷ lệ đặt phòng theo hạng phòng</p>
+            </div>
+            
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data?.roomTypeStats}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {data?.roomTypeStats.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  />
+                  <Legend verticalAlign="bottom" height={36}/>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="mt-8 pt-8 border-t border-gray-50">
+              <h4 className="text-sm font-bold text-gray-900 mb-4">Hoạt động nhanh</h4>
+              <div className="space-y-3">
+                <button 
+                  onClick={() => navigate('/owner/rooms')}
+                  className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group text-left"
+                >
+                  <span className="text-sm font-semibold text-gray-700">Xem tất cả phòng</span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition-transform" />
+                </button>
+                <button 
+                  onClick={() => navigate('/owner/promotions')}
+                  className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group text-left"
+                >
+                  <span className="text-sm font-semibold text-gray-700">Cấu hình khuyến mãi</span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

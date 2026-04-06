@@ -8,7 +8,8 @@ export const generateVNPayPaymentUrl = (
     userId: string,
     amount: number,
     orderId: string,
-    ipAddr: string
+    ipAddr: string,
+    orderInfo?: string
 ) => {
     const date = new Date();
     const createDate = formatVNPayDate(date);
@@ -26,7 +27,7 @@ export const generateVNPayPaymentUrl = (
         vnp_Locale: 'vn',
         vnp_CurrCode: 'VND',
         vnp_TxnRef: orderId,
-        vnp_OrderInfo: `NapTien_${userId}_${amount}`,
+        vnp_OrderInfo: orderInfo || `NapTien_${userId}_${amount}`,
         vnp_OrderType: 'other',
         vnp_Amount: amount * 100,
         vnp_ReturnUrl: returnUrl,

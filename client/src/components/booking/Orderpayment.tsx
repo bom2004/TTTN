@@ -1,41 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import axios from 'axios';
-import { Room, UserData, ApiResponse } from '../../types';
+import { Room } from '../../types';
+import { useAppDispatch, useAppSelector } from '../../lib/redux/store';
+import { selectAuthUser, getProfileThunk } from '../../lib/redux/reducers/auth';
+import { createBookingThunk } from '../../lib/redux/reducers/booking';
+
 
 const Orderpayment: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const backendUrl = "http://localhost:3000";
+    const dispatch = useAppDispatch();
 
-    const { room, customerInfo, checkIn, checkOut, numNights, totalAmount, finalAmount, discountInfo, promotionCode, priceUnit, specialRequests, paymentType: initialPaymentType, checkInTime } = location.state || {};
+    const { room, customerInfo, checkIn, checkOut, numNights, totalAmount, finalAmount, discountInfo, promotionCode, priceUnit, specialRequests, paymentType: initialPaymentType, checkInTime, roomQuantity = 1 } = location.state || {};
 
-    const [userData, setUserData] = useState<UserData | null>(null);
+    const userData = useAppSelector(selectAuthUser);
     const [paymentType, setPaymentType] = useState<'full' | 'deposit'>(initialPaymentType || 'full');
+    const [paymentGateway, setPaymentGateway] = useState<'wallet' | 'vnpay'>('vnpay'); // Default to VNPay for convenience
     const [isProcessing, setIsProcessing] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     useEffect(() => {
-        const fetchUserData = async () => {
-            const storedUser = localStorage.getItem('userData');
-            if (storedUser) {
-                const user = JSON.parse(storedUser) as UserData;
-                const userId = user.id || user._id;
-                try {
-                    const res = await axios.get<ApiResponse<UserData>>(`${backendUrl}/api/user/profile/${userId}`);
-                    const dbUser = res.data.data || res.data.user;
-                    if (res.data.success && dbUser) {
-                        setUserData(dbUser);
-                        localStorage.setItem('userData', JSON.stringify(dbUser));
-                    }
-                } catch (error) {
-                    setUserData(user);
-                }
-            }
-        };
-        fetchUserData();
-    }, []);
+        const userId = userData?.id || userData?._id;
+        if (userId) {
+            dispatch(getProfileThunk(userId));
+        }
+    }, [dispatch, userData?.id, userData?._id]);
 
     if (!room || !customerInfo) {
         return (
@@ -56,8 +46,8 @@ const Orderpayment: React.FC = () => {
     const hasEnoughBalance = (userData?.balance || 0) >= requiredAmount;
 
     const handleConfirmPayment = async () => {
-        if (!hasEnoughBalance) {
-            toast.error("Số dư ví không đủ. Vui lòng nạp thêm tiền.");
+        if (paymentGateway === 'wallet' && !hasEnoughBalance) {
+            toast.error("Số dư ví không đủ. Vui lòng nạp thêm tiền hoặc chọn thanh toán qua VNPay.");
             return;
         }
 
@@ -68,37 +58,45 @@ const Orderpayment: React.FC = () => {
                 customerInfo,
                 checkInDate: new Date(checkIn),
                 checkOutDate: new Date(checkOut),
-                rooms: [{
-                    roomId: room?._id,
-                    price: room?.price
-                }],
+                roomTypeId: room?._id || room?.id,
+                roomQuantity: roomQuantity,
                 promotionCode: discountInfo?.amount > 0 ? promotionCode : "",
                 specialRequests,
                 checkInTime,
-                paymentMethod: 'wallet',
-                paymentStatus: paymentType === 'full' ? 'paid' : 'deposited',
+                paymentMethod: paymentGateway, // Sử dụng gateway đã chọn
+                paymentStatus: paymentGateway === 'wallet' ? (paymentType === 'full' ? 'paid' : 'deposited') : 'unpaid',
                 paidAmount: requiredAmount,
                 totalAmount: finalAmount,
-                status: 'confirmed'
+                status: 'pending'
             };
 
-            const response = await axios.post(`${backendUrl}/api/bookings`, bookingData);
+            const res = await dispatch(createBookingThunk(bookingData)).unwrap();
 
-            if (response.data.success) {
-                // Update local balance
-                const updatedUser = { ...userData!, balance: (userData?.balance || 0) - requiredAmount };
-                setUserData(updatedUser);
-                localStorage.setItem('userData', JSON.stringify(updatedUser));
+            if (res.success) {
+                // Nếu là VNPay, chuyển hướng sang trang thanh toán
+                if (paymentGateway === 'vnpay' && res.paymentUrl) {
+                    toast.info("Đang chuyển hướng sang cổng thanh toán VNPay...");
+                    setTimeout(() => {
+                        window.location.href = res.paymentUrl;
+                    }, 1000);
+                    return;
+                }
+
+                // Nếu là ví, thực hiện như cũ
+                const userId = userData?.id || userData?._id;
+                if (userId) {
+                    dispatch(getProfileThunk(userId));
+                }
 
                 toast.success(paymentType === 'full' ? "Thanh toán thành công!" : "Đặt cọc thành công!");
 
-                // Show success modal or redirect
                 setTimeout(() => {
                     navigate('/profile');
                 }, 2000);
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Giao dịch thất bại");
+            console.error("Booking Error:", error);
+            toast.error(typeof error === 'string' ? error : (error.message || "Giao dịch thất bại"));
         } finally {
             setIsProcessing(false);
         }
@@ -148,7 +146,7 @@ const Orderpayment: React.FC = () => {
                             <div className="space-y-4">
                                 <div className="flex justify-between pb-3 border-b border-dashed border-slate-100">
                                     <span className="text-slate-500">Phòng đã chọn</span>
-                                    <span className="font-bold">{room.name}</span>
+                                    <span className="font-bold">{room.name} (x{roomQuantity})</span>
                                 </div>
                                 <div className="flex justify-between pb-3 border-b border-dashed border-slate-100">
                                     <span className="text-slate-500">Thời gian</span>
@@ -220,6 +218,67 @@ const Orderpayment: React.FC = () => {
                                 </label>
                             </div>
                         </div>
+
+                        {/* Payment Gateway Selection */}
+                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm transition-all">
+                            <h2 className="text-xl font-black mb-6 flex items-center gap-2 text-[#003580]">
+                                <span className="material-symbols-outlined">account_balance</span>
+                                Cổng thanh toán
+                            </h2>
+
+                            <div className="space-y-4">
+                                <label
+                                    className={`relative p-5 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-4 ${paymentGateway === 'vnpay'
+                                            ? 'border-[#003580] bg-blue-50 ring-2 ring-blue-100'
+                                            : 'border-slate-100 hover:border-slate-200 bg-white'
+                                        }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="paymentGateway"
+                                        className="hidden"
+                                        checked={paymentGateway === 'vnpay'}
+                                        onChange={() => setPaymentGateway('vnpay')}
+                                    />
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${paymentGateway === 'vnpay' ? 'bg-[#003580] text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <span className="material-symbols-outlined text-2xl">qr_code_2</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-black text-sm text-slate-800">Cổng VNPay (Thanh toán trực tiếp)</p>
+                                            <span className="bg-emerald-100 text-emerald-600 text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest">Khuyên dùng</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">Hỗ trợ QR Code, Thẻ nội địa, Thẻ quốc tế</p>
+                                    </div>
+                                    {paymentGateway === 'vnpay' && <span className="absolute top-4 right-4 material-symbols-outlined text-[#003580]">check_circle</span>}
+                                </label>
+
+                                <label
+                                    className={`relative p-5 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-4 ${paymentGateway === 'wallet'
+                                            ? 'border-[#ec5b13] bg-orange-50 ring-2 ring-orange-100'
+                                            : 'border-slate-100 hover:border-slate-200 bg-white'
+                                        }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="paymentGateway"
+                                        className="hidden"
+                                        checked={paymentGateway === 'wallet'}
+                                        onChange={() => setPaymentGateway('wallet')}
+                                    />
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${paymentGateway === 'wallet' ? 'bg-[#ec5b13] text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <span className="material-symbols-outlined text-2xl">wallet</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-black text-sm text-slate-800">Ví QuickStay (Sử dụng số dư ví)</p>
+                                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                            Số dư khả dụng: <span className="font-bold text-slate-700">{new Intl.NumberFormat('vi-VN').format(userData?.balance || 0)}₫</span>
+                                        </p>
+                                    </div>
+                                    {paymentGateway === 'wallet' && <span className="absolute top-4 right-4 material-symbols-outlined text-[#ec5b13]">check_circle</span>}
+                                </label>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Right: Wallet & Confirmation */}
@@ -248,10 +307,10 @@ const Orderpayment: React.FC = () => {
                             </div>
 
                             <button
-                                disabled={!hasEnoughBalance || isProcessing}
+                                disabled={(paymentGateway === 'wallet' && !hasEnoughBalance) || isProcessing}
                                 onClick={() => setShowConfirmModal(true)}
-                                className={`w-full mt-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${hasEnoughBalance && !isProcessing
-                                        ? 'bg-[#febb02] text-[#003580] hover:bg-[#ffc83d] shadow-orange-900/40'
+                                className={`w-full mt-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${((paymentGateway === 'wallet' && hasEnoughBalance) || paymentGateway === 'vnpay') && !isProcessing
+                                        ? (paymentGateway === 'wallet' ? 'bg-[#ec5b13] text-white' : 'bg-[#febb02] text-[#003580]')
                                         : 'bg-white/10 text-white/40 cursor-not-allowed shadow-none'
                                     }`}
                             >
@@ -265,9 +324,9 @@ const Orderpayment: React.FC = () => {
                                 )}
                             </button>
 
-                            {!hasEnoughBalance && (
+                            {paymentGateway === 'wallet' && !hasEnoughBalance && (
                                 <p className="text-[10px] text-center mt-4 text-rose-300 font-bold bg-rose-500/20 py-2 rounded-lg border border-rose-500/30">
-                                    Số dự không đủ. Vui lòng nạp thêm tiền.
+                                    Số dư không đủ. Vui lòng nạp thêm tiền hoặc chọn thanh toán VNPay.
                                 </p>
                             )}
                         </div>
@@ -303,7 +362,10 @@ const Orderpayment: React.FC = () => {
                         <div className="bg-slate-50 rounded-2xl p-6 mb-8 space-y-3">
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-500 font-medium">Hình thức</span>
-                                <span className="font-bold text-[#003580]">{paymentType === 'full' ? 'Thanh toán 100%' : 'Đặt cọc 30%'}</span>
+                                <span className="font-bold text-[#003580]">
+                                    {paymentType === 'full' ? 'Thanh toán 100%' : 'Đặt cọc 30%'} {' '}
+                                    ({paymentGateway === 'wallet' ? 'Qua Ví' : 'Qua VNPay'})
+                                </span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-500 font-medium">Giờ nhận phòng</span>

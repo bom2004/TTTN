@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { assets, cities } from '../../assets/assets';
-import { Room, RoomType, ApiResponse } from '../../types';
+import { Room } from '../../lib/redux/reducers/room/types';
 import Viewdetails from '../booking/Viewdetails';
-import { toast } from 'react-toastify';
+import { useAppDispatch, useAppSelector } from '../../lib/redux/store';
+import { fetchAllRoomTypesThunk, selectAllRoomTypes } from '../../lib/redux/reducers/room-type';
+import { searchRoomsThunk } from '../../lib/redux/reducers/room/thunks';
+
 
 
 const SearchPage: React.FC = () => {
-    const backendUrl = "http://localhost:3000";
     const navigate = useNavigate();
     const location = useLocation();
+    const dispatch = useAppDispatch();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Khởi tạo các biến trạng thái (State)
-    const [rooms, setRooms] = useState<Room[]>([]);
-    const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
+    // Redux State
+    const allRoomTypes = useAppSelector(selectAllRoomTypes) as any[];
+    const roomTypes = allRoomTypes.filter(t => t.isActive);
+    const { searchResults: rooms, loading } = useAppSelector(state => state.room);
+
     const [showFilters, setShowFilters] = useState<boolean>(false);
     const [currentPage, setCurrentPage] = useState<number>(1);
     const roomsPerPage = 5;
@@ -30,7 +32,6 @@ const SearchPage: React.FC = () => {
         if (location.state?.openRoom) {
             setSelectedRoomForDetails(location.state.openRoom);
             setShowDetails(true);
-            // Tùy chọn: xóa trạng thái điều hướng để tránh việc tự động mở lại khi làm mới trang (refresh)
             window.history.replaceState({}, document.title);
         }
     }, [location.state]);
@@ -47,38 +48,21 @@ const SearchPage: React.FC = () => {
     const [sortBy, setSortBy] = useState<string>(searchParams.get('sort') || 'newest');
 
     const fetchInitialData = async (): Promise<void> => {
-        try {
-            const typesRes = await axios.get<ApiResponse<RoomType[]>>(`${backendUrl}/api/room-types`);
-            if (typesRes.data.success && typesRes.data.data) {
-                setRoomTypes(typesRes.data.data.filter(t => t.isActive));
-            }
-        } catch (error) {
-            console.error("Error loading types:", error);
-        }
+        dispatch(fetchAllRoomTypesThunk());
     };
 
     const fetchRooms = async (): Promise<void> => {
-        setLoading(true);
-        try {
-            const params = {
-                query: searchParams.get('query') || '',
-                capacity: searchParams.get('capacity') || '',
-                type: searchParams.get('type') || '',
-                checkIn: searchParams.get('checkIn') || '',
-                checkOut: searchParams.get('checkOut') || '',
-                minPrice: searchParams.get('minPrice') || '0',
-                maxPrice: searchParams.get('maxPrice') || '5000000',
-                sort: searchParams.get('sort') || 'newest'
-            };
-            const response = await axios.get<ApiResponse<Room[]>>(`${backendUrl}/api/rooms/search`, { params });
-            if (response.data.success && response.data.data) {
-                setRooms(response.data.data);
-            }
-        } catch (error) {
-            console.error("Error searching rooms:", error);
-        } finally {
-            setLoading(false);
-        }
+        const params = {
+            query: searchParams.get('query') || '',
+            capacity: searchParams.get('capacity') || '',
+            type: searchParams.get('type') || '',
+            checkIn: searchParams.get('checkIn') || '',
+            checkOut: searchParams.get('checkOut') || '',
+            minPrice: searchParams.get('minPrice') || '0',
+            maxPrice: searchParams.get('maxPrice') || '5000000',
+            sort: searchParams.get('sort') || 'newest'
+        };
+        dispatch(searchRoomsThunk(params));
     };
 
 
@@ -94,7 +78,7 @@ const SearchPage: React.FC = () => {
 
         fetchInitialData();
         fetchRooms();
-    }, [searchParams]);
+    }, [searchParams, dispatch]);
 
     // cập nhật bộ lọc 
     const handleApplyFilters = (): void => {
@@ -132,8 +116,7 @@ const SearchPage: React.FC = () => {
         const typeName = getRoomTypeName(roomType).toLowerCase();
         if (typeName.includes('karaoke')) return 'tiếng';
         if (typeName.includes('tiệc')) return 'buổi';
-        if (typeName.includes('thường') || typeName.includes('vip')) return 'ngày';
-        return 'đêm';
+        return 'ngày';
     };
 
     const indexOfLastRoom = currentPage * roomsPerPage;
@@ -320,138 +303,150 @@ const SearchPage: React.FC = () => {
                         ) : rooms.length > 0 ? (
                             <>
                                 <div className="space-y-6">
-                                    {currentRooms.map((room) => (
-                                        <div
-                                            key={room._id}
-                                            className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col md:flex-row hover:shadow-2xl transition-all duration-500 cursor-pointer group relative"
-                                            onClick={() => {
-                                                // if (!checkIn || !checkOut) {
-                                                //     toast.warn("Vui lòng nhập Ngày Nhận và Trả phòng trên thanh tìm kiếm để tiếp tục", { position: "top-center" });
-                                                //     return;
-                                                // }
-                                                setSelectedRoomForDetails(room);
-                                                setShowDetails(true);
-                                            }}
-                                        >
+                                    {currentRooms.map((room: any) => {
+                                        // Fix: Tự động phát hiện dữ liệu nằm ở đâu (RoomType object hoặc trực tiếp trong Room)
+                                        // Nếu room đã có trường rating, sử dụng luôn room, nếu không thì tìm trong room.roomType
+                                        const rt = (room.roomType && typeof room.roomType === 'object')
+                                            ? room.roomType
+                                            : (room.rating !== undefined ? room : {});
 
-                                            {/* Container chứa hình ảnh phòng */}
-                                            <div className="md:w-[320px] h-64 md:h-auto flex-shrink-0 relative overflow-hidden">
-                                                <img
-                                                    src={room.thumbnail || (room as any).avatar || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?q=80&w=600'}
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[1.5s]"
-                                                    alt={room.name || (room as any).roomNumber}
-                                                />
+                                        const rating = rt.rating || 0;
+                                        const reviewCount = rt.reviewCount || 0;
 
-                                                {/* Các nhãn đặc biệt (Top Badges) */}
-                                                <div className="absolute top-4 left-4 flex flex-col gap-2">
-                                                    <span className="bg-[#febb02] text-[#003580] px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
-                                                        <span className="material-symbols-outlined text-[14px]">bolt</span>
-                                                        Giá rẻ nhất
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    onClick={e => { e.stopPropagation(); }}
-                                                    className="absolute top-4 right-4 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center text-gray-400 hover:text-rose-500 transition-all shadow-xl hover:scale-110"
-                                                >
-                                                    <span className="material-symbols-outlined text-[20px] font-black">favorite</span>
-                                                </button>
-                                            </div>
+                                        return (
+                                            <div
+                                                key={room._id}
+                                                className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col md:flex-row hover:shadow-2xl transition-all duration-500 cursor-pointer group relative"
+                                                onClick={() => {
+                                                    setSelectedRoomForDetails(room);
+                                                    setShowDetails(true);
+                                                }}
+                                            >
 
-                                            {/* Container chứa chi tiết thông tin phòng */}
-                                            <div className="flex-1 p-6 flex flex-col justify-between">
-                                                <div className="flex flex-col md:flex-row justify-between gap-4">
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-3 mb-2">
-                                                            <span className="text-xs font-black text-[#006ce4] bg-[#006ce4]/5 px-3 py-1 rounded-full uppercase tracking-widest">
-                                                                {getRoomTypeName(room.roomType)}
-                                                            </span>
-                                                            <div className="flex items-center gap-0.5 text-amber-500">
-                                                                {[1, 2, 3, 4, 5].map(s => <span key={s} className="material-symbols-outlined text-sm font-black">star</span>)}
-                                                            </div>
-                                                        </div>
+                                                {/* Container chứa hình ảnh phòng */}
+                                                <div className="md:w-[320px] h-64 md:h-auto flex-shrink-0 relative overflow-hidden">
+                                                    <img
+                                                        src={rt.image || room.thumbnail || (room as any).image || (room as any).avatar || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?q=80&w=600'}
+                                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[1.5s]"
+                                                        alt={room.name || rt.name}
+                                                    />
 
-                                                        <h3 className="text-2xl font-[900] text-[#1a1a1a] mb-2 group-hover:text-[#006ce4] transition-colors flex items-center gap-3">
-                                                            {room.name || `Phòng ${(room as any).roomNumber}`}
-                                                            <span className="material-symbols-outlined text-[#006ce4] text-xl">verified</span>
-                                                        </h3>
-
-                                                        <div className="flex flex-wrap items-center gap-6 text-sm font-medium text-gray-500 mb-6">
-                                                            {/* Ẩn số lượng phòng trống theo yêu cầu của người dùng để tránh hiển thị trạng thái cụ thể với khách */}
-                                                            <span className="flex items-center gap-2">
-                                                                <span className="material-symbols-outlined text-gray-400 text-lg">aspect_ratio</span>
-                                                                {room.size}m²
-                                                            </span>
-
-                                                            <span className="flex items-center gap-2 text-emerald-600">
-                                                                <span className="material-symbols-outlined text-lg">wifi</span>
-                                                                WiFi miễn phí
-                                                            </span>
-                                                        </div>
-
-                                                        <div className="space-y-2">
-                                                            <div className="flex items-center gap-2 text-emerald-700 text-sm font-black">
-                                                                <span className="material-symbols-outlined text-lg">check_circle</span>
-                                                                Dễ dàng hủy phòng • Thanh toán tại chỗ nghỉ
-                                                            </div>
-                                                        </div>
+                                                    {/* Các nhãn đặc biệt (Top Badges) */}
+                                                    <div className="absolute top-4 left-4 flex flex-col gap-2">
+                                                        <span className="bg-[#febb02] text-[#003580] px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
+                                                            <span className="material-symbols-outlined text-[14px]">bolt</span>
+                                                            Giá rẻ nhất
+                                                        </span>
                                                     </div>
-
-                                                    {/* Nhãn Đánh giá - Phía bên phải (Rating box) */}
-                                                    <div className="flex md:flex-col items-end gap-2 text-right">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex flex-col">
-                                                                <span className="text-sm font-[900] text-[#1a1a1a]">Rất tốt</span>
-                                                                <span className="text-[10px] text-gray-400 font-bold">1,245 đánh giá</span>
-                                                            </div>
-                                                            <div className="bg-[#003580] text-white w-10 h-10 rounded-lg flex items-center justify-center font-black rounded-bl-none shadow-lg">9.2</div>
-                                                        </div>
-                                                    </div>
+                                                    <button
+                                                        onClick={e => { e.stopPropagation(); }}
+                                                        className="absolute top-4 right-4 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center text-gray-400 hover:text-rose-500 transition-all shadow-xl hover:scale-110"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px] font-black">favorite</span>
+                                                    </button>
                                                 </div>
 
-                                                {/* Thanh Giá cả & Nút hành động phía dưới (Bottom Price & CTA Bar) */}
-                                                <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col md:flex-row items-end justify-between gap-6">
-                                                    <div className="flex-1">
-                                                        {!localStorage.getItem('token') && (
-                                                            <>
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="material-symbols-outlined text-[#006ce4] text-lg">auto_awesome</span>
-                                                                    <span className="text-xs font-black text-[#006ce4] uppercase tracking-widest">Ưu đãi Genius</span>
+                                                {/* Container chứa chi tiết thông tin phòng */}
+                                                <div className="flex-1 p-6 flex flex-col justify-between">
+                                                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-3 mb-2">
+                                                                <span className="text-xs font-black text-[#006ce4] bg-[#006ce4]/5 px-3 py-1 rounded-full uppercase tracking-widest">
+                                                                    {getRoomTypeName(room.roomType)}
+                                                                </span>
+                                                                <div className="flex items-center gap-0.5 text-amber-500">
+                                                                    {[1, 2, 3, 4, 5].map(s => (
+                                                                        <span key={s} className={`material-symbols-outlined text-sm ${s <= Math.round(rating) ? 'fill-[1]' : ''}`}>
+                                                                            star
+                                                                        </span>
+                                                                    ))}
                                                                 </div>
-                                                                <p className="text-xs text-emerald-600 font-bold italic leading-relaxed">Đăng nhập để tiết kiệm thêm 10% tại chỗ nghỉ này với tài khoản Genius của bạn.</p>
-                                                            </>
-                                                        )}
-                                                    </div>
+                                                            </div>
 
-                                                    <div className="text-right">
-                                                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Giá cho 1 {getPriceUnit(room.roomType)}</p>
-                                                        <div className="flex items-end gap-2 mb-4">
-                                                            {room.originalPrice && room.originalPrice > room.price && (
-                                                                <span className="text-sm font-bold text-gray-400 line-through mb-1">{formatCurrency(room.originalPrice)}₫</span>
-                                                            )}
-                                                            <span className="text-3xl font-[900] text-[#1a1a1a]">{formatCurrency(room.price)}₫</span>
+                                                            <h3 className="text-2xl font-[900] text-[#1a1a1a] mb-2 group-hover:text-[#006ce4] transition-colors flex items-center gap-3">
+                                                                {room.name || `Phòng ${(room as any).roomNumber}`}
+                                                                <span className="material-symbols-outlined text-[#006ce4] text-xl">verified</span>
+                                                            </h3>
+
+                                                            <div className="flex flex-wrap items-center gap-6 text-sm font-medium text-gray-500 mb-6">
+                                                                <span className="flex items-center gap-2">
+                                                                    <span className="material-symbols-outlined text-gray-400 text-lg">aspect_ratio</span>
+                                                                    {room.size}m²
+                                                                </span>
+
+                                                                <span className="flex items-center gap-2 text-emerald-600">
+                                                                    <span className="material-symbols-outlined text-lg">wifi</span>
+                                                                    WiFi miễn phí
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center gap-2 text-emerald-700 text-sm font-black">
+                                                                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                                                                    Dễ dàng hủy phòng • Thanh toán tại chỗ nghỉ
+                                                                </div>
+                                                            </div>
                                                         </div>
 
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // if (!checkIn || !checkOut) {
-                                                                //     toast.warn("Vui lòng nhập Ngày Nhận và Trả phòng trên thanh tìm kiếm để tiếp tục", { position: "top-center" });
-                                                                //     return;
-                                                                // }
-                                                                setSelectedRoomForDetails(room);
-                                                                setShowDetails(true);
-                                                            }}
-                                                            className="bg-[#006ce4] hover:bg-[#0057b8] text-white font-black text-sm px-10 py-4 rounded-xl transition-all shadow-xl shadow-blue-900/10 transform hover:scale-105 active:scale-95 flex items-center gap-3"
-                                                        >
-                                                            Xem tình trạng phòng
-                                                            <span className="material-symbols-outlined text-lg">arrow_forward</span>
-                                                        </button>
+                                                        {/* Nhãn Đánh giá - Phía bên phải (Rating box) - Dynamic */}
+                                                        <div className="flex md:flex-col items-end gap-2 text-right">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-[900] text-[#1a1a1a]">
+                                                                        {rating >= 4.5 ? 'Xuất sắc' : rating >= 4.0 ? 'Rất tốt' : rating >= 3.0 ? 'Hài lòng' : 'Chưa có đánh giá'}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-gray-400 font-bold">
+                                                                        {new Intl.NumberFormat('vi-VN').format(reviewCount)} đánh giá
+                                                                    </span>
+                                                                </div>
+                                                                <div className="bg-[#003580] text-white min-w-[40px] h-10 px-2 rounded-lg flex items-center justify-center font-black rounded-bl-none shadow-lg">
+                                                                    {(rating * 2).toFixed(1)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
+                                                    {/* Thanh Giá cả & Nút hành động phía dưới (Bottom Price & CTA Bar) */}
+                                                    <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col md:flex-row items-end justify-between gap-6">
+                                                        <div className="flex-1">
+                                                            {!localStorage.getItem('token') && (
+                                                                <>
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className="material-symbols-outlined text-[#006ce4] text-lg">auto_awesome</span>
+                                                                        <span className="text-xs font-black text-[#006ce4] uppercase tracking-widest">Ưu đãi Genius</span>
+                                                                    </div>
+                                                                    <p className="text-xs text-emerald-600 font-bold italic leading-relaxed">Đăng nhập để tiết kiệm thêm 10% tại chỗ nghỉ này với tài khoản Genius của bạn.</p>
+                                                                </>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="text-right">
+                                                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Giá cho 1 {getPriceUnit(room.roomType)}</p>
+                                                            <div className="flex items-end gap-2 mb-4">
+                                                                {room.originalPrice && room.originalPrice > room.price && (
+                                                                    <span className="text-sm font-bold text-gray-400 line-through mb-1">{formatCurrency(room.originalPrice)}₫</span>
+                                                                )}
+                                                                <span className="text-3xl font-[900] text-[#1a1a1a]">{formatCurrency(room.price)}₫</span>
+                                                            </div>
+
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedRoomForDetails(room);
+                                                                    setShowDetails(true);
+                                                                }}
+                                                                className="bg-[#006ce4] hover:bg-[#0057b8] text-white font-black text-sm px-10 py-4 rounded-xl transition-all shadow-xl shadow-blue-900/10 transform hover:scale-105 active:scale-95 flex items-center gap-3"
+                                                            >
+                                                                Xem tình trạng phòng
+                                                                <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                                                            </button>
+
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
 
                                 {/* Bộ điều khiển phân trang (Pagination Controls) */}
@@ -518,6 +513,8 @@ const SearchPage: React.FC = () => {
                             setShowDetails(false);
                             setSelectedRoomForDetails(null);
                         }}
+                        checkIn={checkIn}
+                        checkOut={checkOut}
                     />
                 </div>
             )}

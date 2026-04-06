@@ -26,5 +26,6 @@ export const parseAmenitiesObject = (amenities: any) => {
  */
 export const normalizeDateUTC = (dateStr: string | Date): Date => {
     const d = new Date(dateStr);
-    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    // Sử dụng getUTC... để đảm bảo lấy đúng ngày tháng năm theo chuẩn, không bị lệch do múi giờ server
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 };

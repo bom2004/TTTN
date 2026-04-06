@@ -1,29 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'react-toastify';
-import { ApiResponse, UserData } from '../../types';
+import { UserData } from '../../types';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
+import { useAppDispatch, useAppSelector } from '../../lib/redux/store';
+import {
+    fetchAllUsersThunk,
+    createUserThunk,
+    updateUserThunk,
+    deleteUserThunk,
+    adminUpdatePasswordThunk,
+    adminRechargeThunk,
+    selectAllUsers,
+    selectUserLoading,
+} from '../../lib/redux/reducers/user';
 
 interface UserForm {
     full_name: string;
     email: string;
     phone: string;
     password?: string;
-    role: 'customer' | 'staff' | 'admin' | 'hotelOwner';
+    role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
     balance: string;
     totalRecharged: string;
 }
 
-
-
 const UserAdmin: React.FC = () => {
-    const backendUrl = "http://localhost:3000";
-    const [users, setUsers] = useState<UserData[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
+    const dispatch = useAppDispatch();
+    const users = useAppSelector(selectAllUsers);
+    const loading = useAppSelector(selectUserLoading);
+
     const [searchTerm, setSearchTerm] = useState<string>('');
+    const [filterRole, setFilterRole] = useState<string>('');
+    const [filterGenius, setFilterGenius] = useState<string>('');
     const [currentPage, setCurrentPage] = useState<number>(1);
-    const ITEMS_PER_PAGE = 5;
+    const ITEMS_PER_PAGE = 10;
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isEditMode, setIsEditMode] = useState<boolean>(false);
     const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
@@ -32,6 +43,12 @@ const UserAdmin: React.FC = () => {
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
     const [deleteTargetName, setDeleteTargetName] = useState<string>('');
     const [newPassword, setNewPassword] = useState<string>('');
+
+    // State cho tính năng nạp tiền
+    const [isRechargeModalOpen, setIsRechargeModalOpen] = useState<boolean>(false);
+    const [rechargeUserId, setRechargeUserId] = useState<string | null>(null);
+    const [rechargeUserName, setRechargeUserName] = useState<string>('');
+    const [rechargeAmount, setRechargeAmount] = useState<string>('');
 
     const [formData, setFormData] = useState<UserForm>({
         full_name: '',
@@ -43,7 +60,9 @@ const UserAdmin: React.FC = () => {
         totalRecharged: '0'
     });
 
-
+    useEffect(() => {
+        dispatch(fetchAllUsersThunk());
+    }, [dispatch]);
 
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
         const file = e.target.files?.[0];
@@ -53,29 +72,9 @@ const UserAdmin: React.FC = () => {
         }
     };
 
-    const fetchUsers = async (): Promise<void> => {
-        setLoading(true);
-        try {
-            const response = await axios.get<ApiResponse<UserData[]>>(`${backendUrl}/api/user/all-users`);
-            if (response.data.success && response.data.data) {
-                setUsers(response.data.data);
-            }
-        } catch (error) {
-            console.error("Error fetching users:", error);
-            toast.error("Không thể tải danh sách người dùng");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchUsers();
-    }, []);
-
     const handleInvite = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
         try {
-            let response;
             if (isEditMode && selectedUser) {
                 const data = new FormData();
                 data.append('userId', selectedUser._id || selectedUser.id);
@@ -85,20 +84,17 @@ const UserAdmin: React.FC = () => {
                 data.append('role', formData.role);
                 data.append('balance', formData.balance);
                 data.append('totalRecharged', formData.totalRecharged);
-
                 if (avatarFile) data.append('avatar', avatarFile);
 
-                response = await axios.post<ApiResponse<any>>(`${backendUrl}/api/user/admin-update-user`, data, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+                await dispatch(updateUserThunk(data)).unwrap();
 
-                // Update password if provided
                 if (newPassword.trim()) {
-                    await axios.post<ApiResponse<any>>(`${backendUrl}/api/user/admin-update-password`, {
+                    await dispatch(adminUpdatePasswordThunk({
                         userId: selectedUser._id || selectedUser.id,
                         newPassword: newPassword
-                    });
+                    })).unwrap();
                 }
+                toast.success("Cập nhật người dùng thành công");
             } else {
                 const data = new FormData();
                 data.append('full_name', formData.full_name);
@@ -107,44 +103,50 @@ const UserAdmin: React.FC = () => {
                 data.append('role', formData.role);
                 data.append('balance', formData.balance);
                 data.append('totalRecharged', formData.totalRecharged);
-
-                // Ensure password is sent
-
                 data.append('password', formData.password || '');
                 if (avatarFile) data.append('avatar', avatarFile);
-                response = await axios.post<ApiResponse<any>>(`${backendUrl}/api/user/admin-create-user`, data, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+
+                await dispatch(createUserThunk(data)).unwrap();
+                toast.success("Tạo người dùng thành công");
             }
 
-
-            if (response.data.success) {
-                toast.success(response.data.message);
-                setIsModalOpen(false);
-                setAvatarFile(null);
-                setAvatarPreview(null);
-                setNewPassword('');
-                fetchUsers();
-            } else {
-                toast.error(response.data.message);
-            }
+            setIsModalOpen(false);
+            setAvatarFile(null);
+            setAvatarPreview(null);
+            setNewPassword('');
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Đã xảy ra lỗi");
+            toast.error(error || "Đã xảy ra lỗi");
         }
     };
 
     const handleDelete = async (userId: string): Promise<void> => {
         try {
-            const response = await axios.post<ApiResponse<any>>(`${backendUrl}/api/user/delete-user`, { userId });
-            if (response.data.success) {
-                toast.success(response.data.message);
-                fetchUsers();
-            }
+            await dispatch(deleteUserThunk(userId)).unwrap();
+            toast.success("Xóa người dùng thành công");
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Lỗi khi xóa");
+            toast.error(error || "Lỗi khi xóa");
         } finally {
             setDeleteTargetId(null);
             setDeleteTargetName('');
+        }
+    };
+
+    const handleRecharge = async (e: React.FormEvent): Promise<void> => {
+        e.preventDefault();
+        try {
+            if (!rechargeUserId) return;
+            const amount = parseInt(rechargeAmount);
+            if (isNaN(amount) || amount <= 0) {
+                toast.error("Số tiền không hợp lệ");
+                return;
+            }
+            
+            const res = await dispatch(adminRechargeThunk({ userId: rechargeUserId, amount })).unwrap();
+            toast.success(res.message || "Nạp tiền thành công");
+            setIsRechargeModalOpen(false);
+            setRechargeAmount('');
+        } catch (error: any) {
+            toast.error(error || "Lỗi khi nạp tiền");
         }
     };
 
@@ -158,7 +160,6 @@ const UserAdmin: React.FC = () => {
             totalRecharged: (user.totalRecharged || 0).toString()
         });
 
-
         setSelectedUser(user);
         setAvatarFile(null);
         setAvatarPreview(user.avatar || null);
@@ -167,10 +168,43 @@ const UserAdmin: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const filteredUsers = users.filter(u => 
-        u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        u.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const getRoleLabel = (role: string): string => {
+        switch (role) {
+            case 'admin': return 'Quản trị viên';
+            case 'hotelOwner': return 'Chủ khách sạn';
+            case 'staff': return 'Quản lý';
+            case 'receptionist': return 'Lễ tân';
+            case 'accountant': return 'Kế toán';
+            default: return 'Khách hàng';
+        }
+    };
+
+    const getRoleColor = (role: string): string => {
+        switch (role) {
+            case 'admin': return 'text-purple-600 bg-purple-50';
+            case 'hotelOwner': return 'text-indigo-600 bg-indigo-50';
+            case 'staff': return 'text-emerald-600 bg-emerald-50';
+            case 'receptionist': return 'text-blue-600 bg-blue-50';
+            case 'accountant': return 'text-amber-600 bg-amber-50';
+            default: return 'text-gray-600 bg-gray-50';
+        }
+    };
+
+    const getUserLevel = (totalRecharged: number): { level: number; label: string } => {
+        if (totalRecharged < 10000000) return { level: 0, label: 'Silver' };
+        if (totalRecharged < 50000000) return { level: 1, label: 'Gold' };
+        if (totalRecharged < 150000000) return { level: 2, label: 'Diamond' };
+        return { level: 3, label: `Platinum` };
+    };
+
+    const filteredUsers = users.filter(u => {
+        const matchesSearch = u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.email.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesRole = filterRole === '' || u.role === filterRole;
+        const userLevel = getUserLevel(u.totalRecharged || 0).level.toString();
+        const matchesGenius = filterGenius === '' || userLevel === filterGenius;
+        return matchesSearch && matchesRole && matchesGenius;
+    });
 
     const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
     const paginatedUsers = filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -182,127 +216,152 @@ const UserAdmin: React.FC = () => {
     }, [totalPages, currentPage]);
 
     return (
-        <div className="p-8 bg-[#f5f5f5] min-h-screen font-sans">
-            <div className="max-w-[1600px] mx-auto">
-                <header className="flex justify-between items-center mb-10">
-                    <div className="space-y-1">
-                        <h1 className="text-3xl font-[900] text-[#003580] tracking-tight">Quản lý người dùng</h1>
-                        <p className="text-sm font-medium text-gray-500">Xem và quản lý tất cả tài khoản trong hệ thống của bạn.</p>
-                    </div>
-                    <button 
-                        onClick={() => { setIsEditMode(false); setFormData({full_name:'', email:'', phone:'', password:'', role:'customer', balance: '0', totalRecharged: '0'}); setAvatarFile(null); setAvatarPreview(null); setIsModalOpen(true); }}
-                        className="bg-[#003580] text-white px-5 py-3 rounded-lg font-bold text-sm hover:bg-[#002a6b] transition-all shadow-md active:scale-95 flex items-center gap-2"
+        <div className="p-6 bg-gray-50 min-h-screen">
+            {/* Header */}
+            <div className="mb-6">
+                <h1 className="text-2xl font-semibold text-gray-900">Quản lý người dùng</h1>
+                <p className="text-sm text-gray-500 mt-1">Quản lý tất cả tài khoản người dùng trong hệ thống</p>
+            </div>
 
+            {/* Search and Filters */}
+            <div className="mb-4 flex flex-wrap gap-3 items-center">
+                <div className="flex-1 min-w-[200px]">
+                    <input
+                        type="text"
+                        placeholder="Tìm theo tên hoặc email..."
+                        className="w-full max-w-md px-4 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                        value={searchTerm}
+                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    />
+                </div>
+                <select
+                    className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:border-gray-400"
+                    value={filterRole}
+                    onChange={(e) => { setFilterRole(e.target.value); setCurrentPage(1); }}
+                >
+                    <option value="">Tất cả vai trò</option>
+                    <option value="customer">Khách hàng</option>
+                    <option value="hotelOwner">Chủ khách sạn</option>
+                    <option value="admin">Quản trị viên</option>
+                    <option value="staff">Quản lý</option>
+                    <option value="receptionist">Lễ tân</option>
+                    <option value="accountant">Kế toán</option>
+                </select>
+                <select
+                    className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:border-gray-400"
+                    value={filterGenius}
+                    onChange={(e) => { setFilterGenius(e.target.value); setCurrentPage(1); }}
+                >
+                    <option value="">Mọi cấp độ</option>
+                    <option value="0">Silver</option>
+                    <option value="1">Gold</option>
+                    <option value="2">Diamond</option>
+                    <option value="3">Platinum</option>
+                </select>
+                <button
+                    onClick={() => { setIsEditMode(false); setFormData({ full_name: '', email: '', phone: '', password: '', role: 'customer', balance: '0', totalRecharged: '0' }); setAvatarFile(null); setAvatarPreview(null); setIsModalOpen(true); }}
+                    className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition ml-auto"
+                >
+                    + Thêm người dùng
+                </button>
+            </div>
 
-                    >
-                        <span className="material-symbols-outlined text-sm">add</span>
-                        Thêm người dùng mới
-                    </button>
-                </header>
-
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-8 border-b border-gray-50 flex items-center gap-4">
-                        <div className="flex-1 relative">
-                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">search</span>
-                            <input 
-                                type="text"
-                                placeholder="Tìm kiếm theo tên hoặc email..."
-                                className="w-full pl-12 pr-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-gray-100 placeholder-gray-400 transition-all outline-none"
-                                value={searchTerm}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="bg-[#003580]/5 border-b border-gray-100">
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Người dùng</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Vai trò</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Số dư</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tổng nạp</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Cấp độ</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Thao tác</th>
-
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan={5} className="px-8 py-10 text-center text-gray-400 font-medium">Đang tải dữ liệu...</td>
-                                    </tr>
-                                ) : paginatedUsers.length > 0 ? (
-                                    paginatedUsers.map((user) => (
-                                        <tr key={user._id || user.id} className="hover:bg-gray-50/30 transition-colors group">
-                                            <td className="px-8 py-5">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center font-black text-gray-400 overflow-hidden group-hover:scale-105 transition-transform border border-gray-100 shadow-sm">
-                                                        {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : user.full_name.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-black text-gray-900">{user.full_name}</p>
-                                                        <p className="text-xs font-bold text-gray-400 lowercase tracking-tighter">{user.email}</p>
-                                                    </div>
+            {/* Table */}
+            {loading ? (
+                <div className="text-center py-12">
+                    <p className="text-gray-400 text-sm">Đang tải...</p>
+                </div>
+            ) : filteredUsers.length === 0 ? (
+                <div className="bg-white rounded-md border border-gray-200 text-center py-12">
+                    <p className="text-gray-400 text-sm">Không tìm thấy người dùng nào</p>
+                </div>
+            ) : (
+                <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Người dùng</th>
+                                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
+                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Số dư</th>
+                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng nạp</th>
+                                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Cấp độ</th>
+                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {paginatedUsers.map((user) => {
+                                const levelInfo = getUserLevel(user.totalRecharged || 0);
+                                return (
+                                    <tr key={user._id || user.id} className="hover:bg-gray-50 transition">
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-sm font-medium overflow-hidden">
+                                                    {user.avatar ? (
+                                                        <img src={user.avatar} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        user.full_name.charAt(0).toUpperCase()
+                                                    )}
                                                 </div>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                                                    user.role === 'admin' ? 'bg-purple-50 text-purple-500' :
-                                                    user.role === 'hotelOwner' ? 'bg-indigo-50 text-indigo-500' :
-                                                    'bg-emerald-50 text-emerald-500'
-                                                }`}>
-                                                    {user.role}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <p className="text-sm font-black text-gray-900">{new Intl.NumberFormat('vi-VN').format(user.balance || 0)}đ</p>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <p className="text-sm font-black text-emerald-600">{new Intl.NumberFormat('vi-VN').format(user.totalRecharged || 0)}đ</p>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                {(() => {
-                                                    const total = user.totalRecharged || 0;
-                                                    let level = 0;
-                                                    if (total >= 100000) {
-                                                        if (total < 500000) level = 1;
-                                                        else level = Math.min(Math.floor(total / 500000) + 1, 10);
-                                                    }
-                                                    return (
-                                                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${level > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>
-                                                            {level > 0 ? `Genius Lvl ${level}` : 'Member'}
-                                                        </span>
-                                                    );
-                                                })()}
-                                            </td>
-
-                                            <td className="px-8 py-5 text-right">
-                                                <div className="flex gap-2 justify-end transition-opacity">
-                                                    <button 
-                                                        onClick={() => openEditModal(user)}
-                                                        className="p-2 bg-[#003580] text-white rounded-lg hover:bg-[#002a6b] transition-all active:scale-90"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]">edit</span>
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => { setDeleteTargetId(user._id || user.id); setDeleteTargetName(user.full_name); }}
-                                                        className="p-2.5 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-100 transition-all active:scale-90"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                    </button>
+                                                <div>
+                                                    <p className="font-medium text-gray-900">{user.full_name}</p>
+                                                    <p className="text-xs text-gray-400">{user.email}</p>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={5} className="px-8 py-10 text-center text-gray-400 font-medium">Không tìm thấy người dùng nào.</td>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
+                                                {getRoleLabel(user.role)}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            <p className="font-medium text-gray-900">{new Intl.NumberFormat('vi-VN').format(user.balance || 0)}₫</p>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            <p className="font-medium text-emerald-600">{new Intl.NumberFormat('vi-VN').format(user.totalRecharged || 0)}₫</p>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium 
+                                                ${levelInfo.level === 0 ? 'bg-gray-100 text-gray-600' : 
+                                                  levelInfo.level === 1 ? 'bg-yellow-100 text-yellow-700' : 
+                                                  levelInfo.level === 2 ? 'bg-blue-100 text-blue-700' : 
+                                                  'bg-purple-100 text-purple-700'}`}>
+                                                {levelInfo.label}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            <div className="flex gap-2 justify-end">
+                                                <button
+                                                    onClick={() => { setRechargeUserId(user._id || user.id); setRechargeUserName(user.full_name); setIsRechargeModalOpen(true); }}
+                                                    className="p-1.5 text-gray-400 hover:text-emerald-600 transition"
+                                                    title="Nạp tiền thủ công"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">payments</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => openEditModal(user)}
+                                                    className="p-1.5 text-gray-400 hover:text-gray-600 transition"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => { setDeleteTargetId(user._id || user.id); setDeleteTargetName(user.full_name); }}
+                                                    className="p-1.5 text-gray-400 hover:text-rose-600 transition"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Pagination */}
+            {filteredUsers.length > 0 && (
+                <div className="mt-4">
                     <Pagination
                         currentPage={currentPage}
                         totalPages={totalPages}
@@ -311,149 +370,183 @@ const UserAdmin: React.FC = () => {
                         onPageChange={setCurrentPage}
                     />
                 </div>
-            </div>
+            )}
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#003580]">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-white w-full max-w-md rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
                             <div>
-                                <h2 className="text-xl font-[900] text-white tracking-tight">{isEditMode ? 'Cập nhật người dùng' : 'Tạo người dùng mới'}</h2>
-                                <p className="text-xs font-bold text-white/60 mt-1 uppercase tracking-widest">Thông tin tài khoản hệ thống</p>
+                                <h2 className="text-lg font-semibold text-gray-900">
+                                    {isEditMode ? 'Cập nhật người dùng' : 'Thêm người dùng mới'}
+                                </h2>
+                                <p className="text-xs text-gray-400 mt-0.5">Thông tin tài khoản</p>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center text-white hover:bg-white/30 transition-all">
-                                <span className="material-symbols-outlined text-lg">close</span>
-                            </button>
+                            <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
                         </div>
-                        
-                        <form onSubmit={handleInvite} className="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
-                            {/* Avatar Upload */}
-                            <div className="flex flex-col items-center gap-3">
-                                <div className="relative group">
-                                    <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 border-4 border-white shadow-lg flex items-center justify-center">
+
+                        <form onSubmit={handleInvite} className="p-6 space-y-4">
+                            {/* Avatar */}
+                            <div className="flex flex-col items-center gap-2">
+                                <div className="relative">
+                                    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl overflow-hidden">
                                         {avatarPreview ? (
                                             <img src={avatarPreview} className="w-full h-full object-cover" alt="Avatar" />
                                         ) : (
-                                            <span className="material-symbols-outlined text-gray-300 text-4xl">person</span>
+                                            <span className="material-symbols-outlined text-3xl">person</span>
                                         )}
                                     </div>
-                                    <label className="absolute bottom-0 right-0 w-8 h-8 bg-[#003580] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#002a6b] transition-colors shadow-md border-2 border-white">
-                                        <span className="material-symbols-outlined text-white text-[16px]">photo_camera</span>
+                                    <label className="absolute bottom-0 right-0 w-7 h-7 bg-gray-900 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-800 transition">
+                                        <span className="material-symbols-outlined text-white text-[14px]">photo_camera</span>
                                         <input type="file" className="hidden" accept="image/*" onChange={handleAvatarChange} />
                                     </label>
                                 </div>
-                                <div className="text-center">
-                                    <p className="text-xs font-bold text-gray-500">Ảnh đại diện</p>
-                                    <p className="text-[10px] text-gray-400">JPG, PNG, GIF · Tối đa 5MB</p>
-                                </div>
+                                <p className="text-[10px] text-gray-400">Ảnh đại diện (tùy chọn)</p>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Họ và tên</label>
-                                <input 
-                                    className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-gray-100 transition-all outline-none" 
-                                    placeholder="Nguyễn Văn A" 
-                                    required 
+                            {/* Form fields */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Họ và tên *</label>
+                                <input
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                    placeholder="Nguyễn Văn A"
+                                    required
                                     value={formData.full_name}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, full_name: e.target.value})}
-                                />
-                            </div>
-                            
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Email liên hệ</label>
-                                <input 
-                                    className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-gray-100 transition-all outline-none" 
-                                    placeholder="example@gmail.com" 
-                                    type="email" 
-                                    required 
-                                    value={formData.email}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, email: e.target.value})}
+                                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Số điện thoại</label>
-                                    <input 
-                                        className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-gray-100 transition-all outline-none" 
-                                        placeholder="0123 456 789" 
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Email *</label>
+                                <input
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                    placeholder="example@gmail.com"
+                                    type="email"
+                                    required
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Số điện thoại</label>
+                                    <input
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        placeholder="0123456789"
                                         value={formData.phone}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, phone: e.target.value})}
+                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Vai trò</label>
-                                    <select 
-                                        className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-black focus:ring-2 focus:ring-gray-100 transition-all outline-none appearance-none"
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Vai trò</label>
+                                    <select
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:border-gray-400"
                                         value={formData.role}
-                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({...formData, role: e.target.value as any})}
+                                        onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                                     >
                                         <option value="customer">Khách hàng</option>
                                         <option value="hotelOwner">Chủ khách sạn</option>
-                                        <option value="staff">Nhân viên</option>
+                                        <option value="staff">Quản lý</option>
+                                        <option value="receptionist">Lễ tân</option>
+                                        <option value="accountant">Kế toán</option>
                                         <option value="admin">Quản trị viên</option>
                                     </select>
                                 </div>
                             </div>
-                            
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Số dư tài khoản (VNĐ)</label>
-                                <input 
-                                    className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-gray-100 transition-all outline-none" 
-                                    placeholder="0" 
-                                    type="number"
-                                    value={formData.balance}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, balance: e.target.value})}
-                                />
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Số dư (VNĐ)</label>
+                                    <input
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        type="number"
+                                        value={formData.balance}
+                                        onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Tổng tích lũy (VIP)</label>
+                                    <input
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        type="number"
+                                        value={formData.totalRecharged}
+                                        onChange={(e) => setFormData({ ...formData, totalRecharged: e.target.value })}
+                                    />
+                                </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tổng tiền đã nạp (Genius - VNĐ)</label>
-                                <input 
-                                    className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-gray-100 transition-all outline-none border-2 border-emerald-100" 
-                                    placeholder="0" 
-                                    type="number"
-                                    value={formData.totalRecharged}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, totalRecharged: e.target.value})}
-                                />
-                            </div>
-
-
-                            
                             {!isEditMode ? (
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mật khẩu khởi tạo</label>
-                                    <input 
-                                        className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-gray-100 transition-all outline-none" 
-                                        placeholder="••••••••" 
-                                        type="password" 
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Mật khẩu *</label>
+                                    <input
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        placeholder="••••••••"
+                                        type="password"
                                         required
                                         value={formData.password}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, password: e.target.value})}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                     />
                                 </div>
                             ) : (
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mật khẩu mới (để trống nếu không đổi)</label>
-                                    <input 
-                                        className="w-full px-6 py-4 bg-gray-50 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-gray-100 transition-all outline-none" 
-                                        placeholder="Nhập mật khẩu mới..." 
-                                        type="password" 
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Mật khẩu mới</label>
+                                    <input
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        placeholder="Để trống nếu không đổi"
+                                        type="password"
                                         value={newPassword}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
+                                        onChange={(e) => setNewPassword(e.target.value)}
                                     />
                                 </div>
                             )}
 
-                            <button className="w-full mt-4 py-4 bg-[#003580] text-white rounded-lg font-bold text-sm hover:bg-[#002a6b] transition-all active:scale-[0.98] shadow-lg">
-                                {isEditMode ? 'Lưu thay đổi' : 'Tạo tài khoản ngay'}
+                            <button className="w-full mt-2 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition">
+                                {isEditMode ? 'Cập nhật' : 'Tạo tài khoản'}
                             </button>
                         </form>
                     </div>
                 </div>
             )}
 
+            {/* Lọc các phần còn lại để giữ nguyên logic Component */}
+            {/* Recharge Modal */}
+            {isRechargeModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-white w-full max-w-sm rounded-lg shadow-xl">
+                        <div className="border-b px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-lg">
+                            <h2 className="text-lg font-semibold text-gray-900">
+                                Nạp tiền thủ công
+                            </h2>
+                            <button onClick={() => setIsRechargeModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                        </div>
+                        <form onSubmit={handleRecharge} className="p-6">
+                            <p className="text-sm text-gray-600 mb-4">
+                                Khách hàng: <span className="font-bold text-gray-900">{rechargeUserName}</span>
+                            </p>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Số tiền nạp (VNĐ) *</label>
+                            <input
+                                className="w-full px-4 py-3 border border-gray-200 rounded-md text-base font-bold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition mb-6"
+                                type="number"
+                                placeholder="Ví dụ: 1000000"
+                                required
+                                min="1"
+                                value={rechargeAmount}
+                                onChange={(e) => setRechargeAmount(e.target.value)}
+                            />
+                            <div className="flex gap-3 justify-end mt-4">
+                                <button type="button" onClick={() => setIsRechargeModalOpen(false)} className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-md hover:bg-gray-200 transition">Hủy</button>
+                                <button type="submit" className="px-6 py-2 bg-emerald-600 text-white font-medium rounded-md hover:bg-emerald-700 transition" disabled={loading}>
+                                    Xác nhận nạp
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
             <ConfirmModal
                 isOpen={!!deleteTargetId}
                 title="Xác nhận xóa"

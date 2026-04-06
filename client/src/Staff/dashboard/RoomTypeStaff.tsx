@@ -1,50 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'react-toastify';
-import { ApiResponse, RoomType, Room } from '../../types';
+import { RoomType, Room } from '../../types';
 import Pagination from '../../admin/components/Pagination';
+import { useAppDispatch, useAppSelector } from '../../lib/redux/store';
+import { fetchAllRoomTypesThunk, selectAllRoomTypes, selectRoomTypeLoading } from '../../lib/redux/reducers/room-type';
+import { fetchAllRoomsThunk, selectAllRooms, selectRoomLoading } from '../../lib/redux/reducers/room';
 
 const RoomTypeStaff: React.FC = () => {
-    const backendUrl = "http://localhost:3000";
-    const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-    const [allRooms, setAllRooms] = useState<Room[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
+    const dispatch = useAppDispatch();
+    const roomTypes = useAppSelector(selectAllRoomTypes) as unknown as RoomType[];
+    const allRooms = useAppSelector(selectAllRooms) as unknown as Room[];
+    const loadingTypes = useAppSelector(selectRoomTypeLoading);
+    const loadingRooms = useAppSelector(selectRoomLoading);
+    const loading = loadingTypes || loadingRooms;
+
+    const [searchTerm, setSearchTerm] = useState<string>('');
     const [currentPage, setCurrentPage] = useState<number>(1);
-    const ITEMS_PER_PAGE = 6;
+    const ITEMS_PER_PAGE = 5;
     const [selectedType, setSelectedType] = useState<RoomType | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
 
-    const fetchData = async (): Promise<void> => {
-        setLoading(true);
-        try {
-            const [typesRes, roomsRes] = await Promise.all([
-                axios.get<ApiResponse<RoomType[]>>(`${backendUrl}/api/room-types`),
-                axios.get<ApiResponse<Room[]>>(`${backendUrl}/api/rooms`)
-            ]);
-            
-            if (typesRes.data.success && typesRes.data.data) {
-                setRoomTypes(typesRes.data.data);
-            }
-            if (roomsRes.data.success && roomsRes.data.data) {
-                setAllRooms(roomsRes.data.data);
-            }
-        } catch (error) {
-            console.error("Error:", error);
-            toast.error("Không thể tải danh sách loại phòng");
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
-        fetchData();
-    }, []);
+        dispatch(fetchAllRoomTypesThunk()).unwrap().catch(() => toast.error("Lỗi khi tải danh sách loại phòng"));
+        dispatch(fetchAllRoomsThunk()).unwrap().catch(() => { });
+    }, [dispatch]);
 
-    const totalPages = Math.ceil(roomTypes.length / ITEMS_PER_PAGE);
-    const paginatedTypes = roomTypes.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    const filteredTypes = roomTypes.filter(type =>
+        type.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const totalPages = Math.ceil(filteredTypes.length / ITEMS_PER_PAGE);
+    const paginatedTypes = filteredTypes.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
     const getRoomsByType = (typeName: string) => {
-        return allRooms.filter(room => room.roomType === typeName);
+        return allRooms.filter((room: any) => room.roomTypeId?.name === typeName || room.roomType === typeName);
     };
 
     const openDetail = (type: RoomType) => {
@@ -52,154 +41,231 @@ const RoomTypeStaff: React.FC = () => {
         setIsDetailOpen(true);
     };
 
-    return (
-        <div className="p-8 bg-[#f5f5f5] min-h-screen font-sans text-left">
-            <div className="max-w-[1600px] mx-auto">
-                <header className="mb-10 text-left">
-                    <h1 className="text-3xl font-[900] text-[#003580] tracking-tight">Chi tiết loại phòng</h1>
-                    <p className="text-sm font-medium text-gray-500">Xem thông tin định danh và tiêu chuẩn các loại phòng hiện có.</p>
-                </header>
+    const getStatusBadge = (isActive: boolean) => {
+        return isActive
+            ? { text: 'Đang kinh doanh', color: 'text-emerald-600 bg-emerald-50' }
+            : { text: 'Tạm ngưng', color: 'text-rose-600 bg-rose-50' };
+    };
 
+    return (
+        <div className="p-6 bg-gray-50 min-h-screen">
+            <div className="max-w-[1600px] mx-auto">
+                {/* Header */}
+                <div className="mb-6">
+                    <h1 className="text-2xl font-semibold text-gray-900">Chi tiết loại phòng</h1>
+                    <p className="text-sm text-gray-500 mt-1">Xem thông tin định danh và tiêu chuẩn các loại phòng hiện có</p>
+                </div>
+
+                {/* Search */}
+                <div className="mb-4">
+                    <input
+                        type="text"
+                        placeholder="Tìm theo tên loại phòng..."
+                        className="w-full max-w-md px-4 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                        value={searchTerm}
+                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    />
+                </div>
+
+                {/* Table */}
                 {loading ? (
-                    <div className="text-center py-32 bg-white rounded-[40px] border-2 border-dashed border-gray-100">
-                         <p className="text-gray-400 font-black uppercase tracking-widest text-xs">Đang tải danh sách loại phòng...</p>
+                    <div className="text-center py-12 bg-white rounded-md border border-gray-200">
+                        <p className="text-gray-400 text-sm">Đang tải...</p>
+                    </div>
+                ) : filteredTypes.length === 0 ? (
+                    <div className="bg-white rounded-md border border-gray-200 text-center py-12">
+                        <p className="text-gray-400 text-sm">Không tìm thấy loại phòng nào</p>
                     </div>
                 ) : (
-                    <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {paginatedTypes.map((type) => {
-                                const roomsInType = getRoomsByType(type.name);
-                                const availableCount = roomsInType.filter(r => r.status === 'available').length;
-                                
-                                return (
-                                    <div 
-                                        key={type._id} 
-                                        onClick={() => openDetail(type)}
-                                        className="bg-white rounded-[40px] overflow-hidden border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-blue-900/10 transition-all duration-500 group relative cursor-pointer group"
-                                    >
-                                        <div className="relative h-64 overflow-hidden">
-                                            <img 
-                                                src={type.image || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?q=80&w=400'} 
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                                                alt={type.name} 
-                                            />
-                                            <div className="absolute top-6 left-6 px-4 py-2 bg-white/20 backdrop-blur-md rounded-2xl text-[10px] font-black text-white uppercase tracking-widest shadow-xl border border-white/30">
-                                                {type.isActive ? 'Đang kinh doanh' : 'Tạm dừng'}
-                                            </div>
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-8">
-                                                <button className="w-full py-4 bg-white text-[#003580] rounded-[20px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl">
-                                                    <span>Xem chi tiết</span>
-                                                    <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                    <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Thông tin</th>
+                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Giá / Ngày</th>
+                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Số phòng</th>
+                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {paginatedTypes.map((type) => {
+                                    const roomsInType = getRoomsByType(type.name);
+                                    const statusBadge = getStatusBadge(type.isActive);
+                                    return (
+                                        <tr key={type._id} className="hover:bg-gray-50 transition cursor-pointer" onClick={() => openDetail(type)}>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 rounded-md overflow-hidden bg-gray-100 shrink-0">
+                                                        <img
+                                                            src={type.image || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?w=100&h=100&fit=crop'}
+                                                            className="w-full h-full object-cover"
+                                                            alt={type.name}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">{type.name}</p>
+                                                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-1 max-w-[250px]">
+                                                            {type.description || 'Chưa có mô tả'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <p className="font-bold text-gray-900">
+                                                    {new Intl.NumberFormat('vi-VN').format(type.basePrice)}₫
+                                                </p>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <p className="text-gray-700">{roomsInType.length} phòng</p>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusBadge.color}`}>
+                                                    {statusBadge.text}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openDetail(type); }}
+                                                    className="p-1.5 text-gray-400 hover:text-gray-600 transition"
+                                                    title="Chi tiết"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">visibility</span>
                                                 </button>
-                                            </div>
-                                        </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
 
-                                        <div className="p-10">
-                                            <div className="flex justify-between items-start mb-6">
-                                                <h3 className="text-2xl font-black text-[#003580] tracking-tight group-hover:text-blue-600 transition-colors leading-tight">{type.name}</h3>
-                                            </div>
-                                            <p className="text-sm text-gray-400 font-medium leading-relaxed line-clamp-2 mb-8 h-10">
-                                                {type.description || "Chưa có mô tả chi tiết cho loại phòng này."}
-                                            </p>
-                                            
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-gray-50 rounded-2xl p-4 flex flex-col items-center">
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Giá bán thẻ</p>
-                                                    <p className="text-sm font-black text-[#003580]">{new Intl.NumberFormat('vi-VN').format(type.basePrice)}₫</p>
-                                                </div>
-                                                <div className="bg-gray-50 rounded-2xl p-4 flex flex-col items-center">
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Số phòng</p>
-                                                    <p className="text-sm font-black text-[#003580]">{roomsInType.length || 0} Phòng</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        
-                        <div className="mt-12">
-                            <Pagination
-                                currentPage={currentPage}
-                                totalPages={totalPages}
-                                totalItems={roomTypes.length}
-                                itemsPerPage={ITEMS_PER_PAGE}
-                                onPageChange={setCurrentPage}
-                            />
-                        </div>
-                    </>
+                {/* Pagination */}
+                {filteredTypes.length > ITEMS_PER_PAGE && (
+                    <div className="mt-4">
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalItems={filteredTypes.length}
+                            itemsPerPage={ITEMS_PER_PAGE}
+                            onPageChange={setCurrentPage}
+                        />
+                    </div>
                 )}
 
                 {/* Modal Detail */}
                 {isDetailOpen && selectedType && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#001533]/80 backdrop-blur-md">
-                        <div className="bg-white rounded-[48px] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-white/20 animate-in fade-in zoom-in duration-300 flex flex-col">
-                            <div className="relative h-80 shrink-0">
-                                <img src={selectedType.image} className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent"></div>
-                                <button 
-                                    onClick={() => setIsDetailOpen(false)}
-                                    className="absolute top-8 right-8 w-14 h-14 bg-black/20 hover:bg-black/40 backdrop-blur-xl rounded-[24px] flex items-center justify-center text-white transition-all active:scale-90 z-20"
-                                >
-                                    <span className="material-symbols-outlined text-2xl">close</span>
-                                </button>
-                                <div className="absolute bottom-0 left-0 p-12 text-left w-full">
-                                    <span className="bg-[#003580] text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest mb-4 inline-block shadow-2xl">QUICKSTAY STANDARDS</span>
-                                    <h2 className="text-5xl font-black text-[#003580] tracking-tighter mt-2">{selectedType.name}</h2>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto py-8">
+                        <div className="bg-white w-full max-w-2xl rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+                            <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">
+                                        Chi tiết loại phòng
+                                    </h2>
+                                    <p className="text-xs text-gray-400 mt-0.5">{selectedType.name}</p>
                                 </div>
+                                <button onClick={() => setIsDetailOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
                             </div>
-                            
-                            <div className="p-12 overflow-y-auto custom-scrollbar flex-1 grid grid-cols-1 lg:grid-cols-3 gap-12">
-                                <div className="lg:col-span-2 space-y-8 text-left">
+
+                            <div className="p-6 space-y-5">
+                                {/* Image */}
+                                <div className="w-full h-48 rounded-md overflow-hidden bg-gray-100">
+                                    <img
+                                        src={selectedType.image || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?w=600&h=400&fit=crop'}
+                                        className="w-full h-full object-cover"
+                                        alt={selectedType.name}
+                                    />
+                                </div>
+
+                                {/* Type Info Grid */}
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div className="col-span-2">
+                                        <p className="text-xs font-medium text-gray-400 uppercase">Tên loại phòng</p>
+                                        <p className="font-medium text-gray-900 mt-1">{selectedType.name}</p>
+                                    </div>
                                     <div>
-                                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Tổng quan loại phòng</h4>
-                                        <p className="text-lg text-gray-600 font-medium leading-[1.8] text-justify">
-                                            {selectedType.description || "Đây là loại phòng tiêu chuẩn với đầy đủ các tiện ích cần thiết cho một kỳ nghỉ thoải mái. Tận hưởng không gian thiết kế hiện đại cùng dịch vụ chăm sóc khách hàng hàng đầu từ QuickStay. Mỗi chi tiết đều được chúng tôi chuẩn bị kỹ lưỡng để mang lại trải nghiệm tốt nhất."}
+                                        <p className="text-xs font-medium text-gray-400 uppercase">Giá cơ bản</p>
+                                        <p className="font-bold text-xl text-gray-900 mt-1">
+                                            {new Intl.NumberFormat('vi-VN').format(selectedType.basePrice)}₫
+                                            <span className="text-sm font-normal text-gray-400 ml-1">/ngày</span>
                                         </p>
                                     </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div className="p-6 bg-gray-50 rounded-[32px] border border-gray-100">
-                                            <span className="material-symbols-outlined text-[#006ce4] mb-3">payments</span>
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Đơn giá cơ sở</p>
-                                            <p className="text-2xl font-black text-[#003580]">{new Intl.NumberFormat('vi-VN').format(selectedType.basePrice)}₫</p>
-                                            <p className="text-[10px] font-bold text-gray-400 mt-1">Chưa bao gồm phụ phí & VAT</p>
-                                        </div>
-                                        <div className="p-6 bg-[#006ce4]/5 rounded-[32px] border border-[#006ce4]/10">
-                                            <span className="material-symbols-outlined text-[#006ce4] mb-3">inventory_2</span>
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Hiện diện hệ thống</p>
-                                            <p className="text-2xl font-black text-[#006ce4]">{getRoomsByType(selectedType.name).length} Phòng</p>
-                                            <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase tracking-tighter italic">Cập nhật thời gian thực</p>
-                                        </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-400 uppercase">Số lượng phòng</p>
+                                        <p className="font-medium text-gray-900 mt-1">{getRoomsByType(selectedType.name).length} phòng</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-400 uppercase">Sức chứa</p>
+                                        <p className="font-medium text-gray-900 mt-1">{selectedType.capacity || 2} người</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-400 uppercase">Diện tích</p>
+                                        <p className="font-medium text-gray-900 mt-1">{selectedType.size || 0} m²</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-400 uppercase">Loại giường</p>
+                                        <p className="font-medium text-gray-900 mt-1">{selectedType.bedType || 'Tiêu chuẩn'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-400 uppercase">Hướng nhìn</p>
+                                        <p className="font-medium text-gray-900 mt-1">{selectedType.view || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-400 uppercase">Trạng thái</p>
+                                        <p className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium mt-1 ${selectedType.isActive ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
+                                            {selectedType.isActive ? 'Đang kinh doanh' : 'Tạm ngưng'}
+                                        </p>
                                     </div>
                                 </div>
-                                
-                                <div className="space-y-8 text-left">
-                                    <div>
-                                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Mô hình vận hành</h4>
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-4 group">
-                                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">✓</div>
-                                                <span className="text-sm font-black text-gray-700">Thanh toán trực tuyến</span>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">✓</div>
-                                                <span className="text-sm font-black text-gray-700">Hỗ trợ check-in nhanh</span>
-                                            </div>
-                                            <div className="flex items-center gap-4 opacity-40">
-                                                <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center font-black">✕</div>
-                                                <span className="text-sm font-black text-gray-700">Không hỗ trợ vật nuôi</span>
-                                            </div>
-                                        </div>
-                                    </div>
 
-                                    <div className="p-8 bg-[#003580] rounded-[32px] text-white">
-                                        <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-2">Trạng thái hiện tại</p>
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-3 h-3 rounded-full ${selectedType.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></div>
-                                            <span className="text-lg font-black uppercase tracking-widest">{selectedType.isActive ? 'HOẠT ĐỘNG' : 'TẠM DỪNG'}</span>
-                                        </div>
-                                        <p className="text-[9px] font-medium text-white/40 mt-4 leading-relaxed uppercase tracking-widest italic">Lưu ý: Nhân viên chỉ có quyền xem thông tin, không thể sửa đổi thông số quản lý.</p>
+                                {/* Amenities */}
+                                <div className="border-t pt-4">
+                                    <p className="text-xs font-medium text-gray-400 uppercase mb-2">Tiện nghi</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(() => {
+                                            let amenities = selectedType.amenities;
+                                            if (typeof amenities === 'string') {
+                                                try { amenities = JSON.parse(amenities); } catch (e) { }
+                                            }
+
+                                            const amenityLabels: Record<string, string> = {
+                                                wifi: 'Wi-Fi miễn phí', airConditioner: 'Điều hòa', breakfast: 'Bữa sáng',
+                                                minibar: 'Minibar', tv: 'TV cáp', balcony: 'Ban công'
+                                            };
+
+                                            const amenityList = amenities && typeof amenities === 'object'
+                                                ? Object.entries(amenities).filter(([k, v]) => v === true && k !== '_id')
+                                                : [];
+
+                                            return amenityList.length > 0 ? (
+                                                amenityList.map(([key]) => (
+                                                    <span key={key} className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                                                        {amenityLabels[key] || key}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <p className="text-sm text-gray-400 italic">Chưa có thông tin tiện nghi</p>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+
+                                {/* Description */}
+                                <div className="border-t pt-4">
+                                    <p className="text-xs font-medium text-gray-400 uppercase mb-2">Mô tả</p>
+                                    <p className="text-sm text-gray-600 leading-relaxed">
+                                        {selectedType.description || 'Chưa có mô tả cho loại phòng này.'}
+                                    </p>
+                                </div>
+
+                                {/* Note */}
+                                <div className="border-t pt-4">
+                                    <div className="bg-gray-50 rounded-md p-3">
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1">Lưu ý</p>
+                                        <p className="text-xs text-gray-400 italic">
+                                            Nhân viên chỉ có quyền xem thông tin, không thể sửa đổi thông số quản lý.
+                                        </p>
                                     </div>
                                 </div>
                             </div>

@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { useNavigate, Link } from 'react-router-dom';
 import { ApiResponse } from '../types';
-import authService from '../api/authService';
+import { useAppDispatch } from '../lib/redux/store';
+import { sendOTPThunk, verifyOTPOnlyThunk, resetPasswordThunk } from '../lib/redux/reducers/auth';
 
 const Forgot: React.FC = () => {
     const navigate = useNavigate();
+    const dispatch = useAppDispatch();
     const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Email, 2: OTP, 3: New Password
     const [loading, setLoading] = useState<boolean>(false);
 
@@ -24,13 +26,13 @@ const Forgot: React.FC = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const data = await authService.sendOTP(formData.email);
+            const data = await dispatch(sendOTPThunk({ email: formData.email, checkExist: false })).unwrap();
             if (data.success) {
                 toast.success(data.message);
                 setStep(2);
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Lỗi khi gửi mã");
+            toast.error(error || "Lỗi khi gửi mã");
         } finally {
             setLoading(false);
         }
@@ -40,13 +42,17 @@ const Forgot: React.FC = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const data = await authService.verifyOTPOnly(formData.email, formData.otp);
+            const data = await dispatch(verifyOTPOnlyThunk({
+                email: formData.email,
+                otp: formData.otp
+            })).unwrap();
+
             if (data.success) {
                 toast.success("Mã xác thực chính xác");
                 setStep(3);
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Mã không đúng");
+            toast.error(error || "Mã không đúng");
         } finally {
             setLoading(false);
         }
@@ -61,13 +67,18 @@ const Forgot: React.FC = () => {
 
         setLoading(true);
         try {
-            const data = await authService.resetPassword(formData);
+            const data = await dispatch(resetPasswordThunk({
+                email: formData.email,
+                otp: formData.otp,
+                newPassword: formData.newPassword
+            })).unwrap();
+
             if (data.success) {
                 toast.success("Thay đổi mật khẩu thành công");
                 navigate('/login');
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Lỗi khi đặt lại mật khẩu");
+            toast.error(error || "Lỗi khi đặt lại mật khẩu");
         } finally {
             setLoading(false);
         }

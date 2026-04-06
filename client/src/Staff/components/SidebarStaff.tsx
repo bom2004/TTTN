@@ -1,108 +1,101 @@
 import React from 'react';
 import { NavLink, Link } from 'react-router-dom';
+import { useAppSelector } from '../../lib/redux/store';
+import { selectAuthUser } from '../../lib/redux/reducers/auth/selectors';
 
 const SidebarStaff: React.FC = () => {
+    const user = useAppSelector(selectAuthUser);
+    const role = user?.role;
+
+    // Phân quyền hiển thị TRONG KHU VỰC STAFF
+    const canManagePromotions = role === 'staff' || role === 'admin';
+    const canManageUsers = role === 'staff' || role === 'receptionist' || role === 'admin';
+    const canManageRooms = role === 'staff' || role === 'receptionist' || role === 'admin';
+    const canManageBookings = role === 'staff' || role === 'receptionist' || role === 'admin';
+    const canManageAttendance = role === 'staff' || role === 'admin';
+
+    const menuItems = [
+        {
+            section: 'Nghiệp vụ',
+            items: [
+                { path: '/staff', label: 'Tổng quan', icon: 'dashboard', show: true },
+                { path: '/staff/bookings', label: 'Quản lý đặt phòng', icon: 'calendar_month', show: canManageBookings }
+            ]
+        },
+        {
+            section: 'Cơ sở vật chất',
+            items: [
+                { path: '/staff/rooms', label: 'Tình trạng phòng', icon: 'bed', show: canManageRooms },
+                { path: '/staff/room-types', label: 'Thông tin loại phòng', icon: 'category', show: canManageRooms }
+            ]
+        },
+        {
+            section: 'Nhân sự',
+            items: [
+                { path: '/staff/manage-staff', label: 'Danh sách nhân viên', icon: 'badge', show: canManageAttendance }
+            ]
+        },
+        {
+            section: 'Hỗ trợ',
+            items: [
+                { path: '/staff/users', label: 'Khách hàng', icon: 'group', show: canManageUsers }
+            ]
+        }
+    ];
+
     return (
-        <aside className="w-64 bg-[#003580] flex flex-col h-screen fixed left-0 top-0 z-50 shadow-2xl">
+        <aside className="w-64 bg-gray-800 flex flex-col h-screen fixed left-0 top-0 z-50">
             {/* Brand Logo Section */}
-            <div className="px-6 py-8 flex items-center mb-4">
-                <Link to="/" className="flex items-center gap-3 group">
-                    <div className="bg-[#febb02] w-10 h-10 rounded-xl flex items-center justify-center group-hover:rotate-6 transition-all duration-500 shadow-lg shadow-yellow-500/20">
-                        <span className="text-[#003580] font-black text-lg tracking-tighter">QS</span>
+            <div className="px-4 py-4 border-b border-gray-700">
+                <Link to="/" className="flex items-center gap-2">
+                    <div className="w-7 h-7 bg-gray-600 rounded flex items-center justify-center">
+                        <span className="text-white font-bold text-xs">QS</span>
                     </div>
-                    <span className="text-xl font-black text-white tracking-tight group-hover:text-[#febb02] transition-colors">QuickStay Staff</span>
+                    <span className="text-sm font-medium text-gray-200">QuickStay Staff</span>
                 </Link>
             </div>
 
             {/* Navigation Menu */}
-            <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
-                <div className="pb-2 px-4 pt-2">
-                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.25em]">Nghiệp vụ</span>
-                </div>
-
-                <NavLink
-                    to="/staff"
-                    end
-                    className={({ isActive }) =>
-                        `flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group ${isActive
-                            ? 'bg-[#febb02] text-[#003580] font-black shadow-lg shadow-yellow-500/10'
-                            : 'text-white/60 hover:bg-white/5 hover:text-white'
-                        }`
-                    }
-                >
-                    <span className="material-symbols-outlined mr-3 text-[22px]">dashboard</span>
-                    <span className="text-sm">Tổng quan</span>
-                </NavLink>
-
-                <NavLink
-                    to="/staff/bookings"
-                    className={({ isActive }) =>
-                        `flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group ${isActive
-                            ? 'bg-[#febb02] text-[#003580] font-black shadow-lg shadow-yellow-500/10'
-                            : 'text-white/60 hover:bg-white/5 hover:text-white'
-                        }`
-                    }
-                >
-                    <span className="material-symbols-outlined mr-3 text-[22px]">calendar_month</span>
-                    <span className="text-sm">Quản lý đặt phòng</span>
-                </NavLink>
-
-                <div className="pt-8 pb-2 px-4">
-                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.25em]">Cơ sở vật chất</span>
-                </div>
-
-                <NavLink
-                    to="/staff/rooms"
-                    className={({ isActive }) =>
-                        `flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group ${isActive
-                            ? 'bg-[#febb02] text-[#003580] font-black shadow-lg shadow-yellow-500/10'
-                            : 'text-white/60 hover:bg-white/5 hover:text-white'
-                        }`
-                    }
-                >
-                    <span className="material-symbols-outlined mr-3 text-[22px]">bed</span>
-                    <span className="text-sm">Tình trạng phòng</span>
-                </NavLink>
-
-                <NavLink
-                    to="/staff/room-types"
-                    className={({ isActive }) =>
-                        `flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group ${isActive
-                            ? 'bg-[#febb02] text-[#003580] font-black shadow-lg shadow-yellow-500/10'
-                            : 'text-white/60 hover:bg-white/5 hover:text-white'
-                        }`
-                    }
-                >
-                    <span className="material-symbols-outlined mr-3 text-[22px]">category</span>
-                    <span className="text-sm">Thông tin loại phòng</span>
-                </NavLink>
-
-                <div className="pt-8 pb-2 px-4">
-                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.25em]">Hỗ trợ</span>
-                </div>
-
-                <NavLink
-                    to="/staff/users"
-                    className={({ isActive }) =>
-                        `flex items-center px-4 py-3.5 rounded-xl transition-all duration-300 group ${isActive
-                            ? 'bg-[#febb02] text-[#003580] font-black shadow-lg shadow-yellow-500/10'
-                            : 'text-white/60 hover:bg-white/5 hover:text-white'
-                        }`
-                    }
-                >
-                    <span className="material-symbols-outlined mr-3 text-[22px]">group</span>
-                    <span className="text-sm">Khách hàng</span>
-                </NavLink>
+            <nav className="flex-1 px-3 py-4 overflow-y-auto">
+                {menuItems.map((section, idx) => (
+                    <div key={idx} className="mb-5">
+                        {section.items.some(item => item.show) && (
+                            <div className="px-3 mb-1.5">
+                                <p className="text-[9px] font-medium text-gray-500 uppercase tracking-wider">
+                                    {section.section}
+                                </p>
+                            </div>
+                        )}
+                        {section.items.map((item, itemIdx) => (
+                            item.show && (
+                                <NavLink
+                                    key={itemIdx}
+                                    to={item.path}
+                                    end={item.path === '/staff'}
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-1.5 rounded text-sm transition-colors ${isActive
+                                            ? 'bg-gray-700 text-white'
+                                            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                                        }`
+                                    }
+                                >
+                                    <span className="material-symbols-outlined mr-2 text-[16px]">{item.icon}</span>
+                                    <span>{item.label}</span>
+                                </NavLink>
+                            )
+                        ))}
+                    </div>
+                ))}
             </nav>
 
             {/* Back to Home */}
-            <div className="p-4 mt-auto border-t border-white/5">
+            <div className="p-3 border-t border-gray-700">
                 <Link
                     to="/"
-                    className="flex items-center px-4 py-4 text-white/40 hover:text-white hover:bg-white/5 rounded-2xl transition-all duration-300 group"
+                    className="flex items-center px-3 py-1.5 text-gray-400 text-sm rounded hover:text-gray-200 hover:bg-gray-700/50 transition-colors"
                 >
-                    <span className="material-symbols-outlined mr-3 group-hover:-translate-x-1 transition-transform">logout</span>
-                    <span className="text-sm font-bold uppercase tracking-wider">Thoát nhân viên</span>
+                    <span className="material-symbols-outlined mr-2 text-[16px]">logout</span>
+                    <span>Thoát</span>
                 </Link>
             </div>
         </aside>

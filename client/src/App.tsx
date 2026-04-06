@@ -1,52 +1,66 @@
-import React from 'react';
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
+import React, { useEffect, Suspense, lazy } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+
+// Core UI Components (Import trực tiếp để tránh giật lag khi chuyển trang admin/staff)
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 import SidebarAdmin from './admin/components/SidebarAdmin';
-import { Route, Routes, useLocation } from "react-router-dom";
-import Home from "./pages/Home";
-import SearchPage from './components/Search/Searchpage';
-import Promotions from './pages/Promotions';
-import Login from "./login/login";
-import Register from "./login/Register";
-import Forgot from "./login/forgot";
-import ViewProfile from "./login/Viewprofile";
-import MyBookings from './login/MyBookings';
-import HomeAdmin from "./admin/dashboard/homeadmin";
-import UserAdmin from "./admin/dashboard/user";
-import RoomTypeAdmin from "./admin/dashboard/RoomTypeAdmin";
-import RoomAdmin from "./admin/dashboard/RoomAdmin";
-import PromotionAdmin from "./admin/dashboard/PromotionAdmin";
-import VNPayTopup from "./components/vnpay";
-import VNPayReturn from "./components/VNPayReturn";
-import GlobalSearch from "./components/Search/GlobalSearch";
-import Booking from './components/booking/booking';
-import PaymentBooking from './components/booking/Paymentbooking';
-import Orderpayment from './components/booking/Orderpayment';
 import SidebarStaff from './Staff/components/SidebarStaff';
-import HomeStaff from './Staff/dashboard/HomeStaff';
-import PlaceholderStaffPage from './Staff/dashboard/PlaceholderStaffPage';
-import UserStaff from './Staff/dashboard/UserStaff';
-import RoomStaff from './Staff/dashboard/RoomStaff';
-import RoomTypeStaff from './Staff/dashboard/RoomTypeStaff';
-import BookingStaff from './Staff/dashboard/BookingStaff';
-import PromotionHistory from './pages/Promotionhistory';
-import { Navigate } from "react-router-dom";
-import { UserData } from './types';
+import LoadingScreen from "./utils/LoadingScreen";
+
+// Lazy Loaded Pages (Pages) cho Client (Chỉ tải khi người dùng truy cập)
+const Home = lazy(() => import("./pages/Home"));
+const Login = lazy(() => import("./login/login"));
+const Register = lazy(() => import("./login/Register"));
+const ForgotPassword = lazy(() => import("./login/forgot"));
+const Viewprofile = lazy(() => import("./login/Viewprofile"));
+const MyBookings = lazy(() => import("./login/MyBookings"));
+
+// Lazy Loaded Pages (Pages) cho Admin
+const HomeAdmin = lazy(() => import("./admin/dashboard/homeadmin"));
+const RoomAdmin = lazy(() => import("./admin/dashboard/RoomAdmin"));
+const RoomTypeAdmin = lazy(() => import("./admin/dashboard/RoomTypeAdmin"));
+const UserAdmin = lazy(() => import("./admin/dashboard/user"));
+const PromotionAdmin = lazy(() => import("./admin/dashboard/PromotionAdmin"));
+const StaffAdmin = lazy(() => import("./admin/dashboard/StaffAdmin"));
+const CommentAdmin = lazy(() => import("./admin/dashboard/commentadmin"));
+
+// Lazy Loaded Pages (Pages) cho Staff
+const HomeStaff = lazy(() => import("./Staff/components/HomeStaff"));
+const RoomStaff = lazy(() => import("./Staff/dashboard/RoomStaff"));
+const RoomTypeStaff = lazy(() => import("./Staff/dashboard/RoomTypeStaff"));
+const BookingStaff = lazy(() => import("./Staff/dashboard/BookingStaff"));
+const UserStaff = lazy(() => import("./Staff/dashboard/UserStaff"));
+const StaffManager = lazy(() => import("./Staff/dashboard/staff"));
+
+// Shared Components / Features
+const Promotions = lazy(() => import("./components/promotion/Promotions"));
+const Promotionhistory = lazy(() => import("./components/promotion/Promotionhistory"));
+const Booking = lazy(() => import("./components/booking/booking"));
+const VNPayTopup = lazy(() => import("./components/vnpay/vnpay"));
+const VNPayReturn = lazy(() => import("./components/vnpay/VNPayReturn"));
+const GlobalSearch = lazy(() => import("./components/Search/GlobalSearch"));
+const SearchPage = lazy(() => import("./components/Search/Searchpage"));
+const PaymentBooking = lazy(() => import("./components/booking/Paymentbooking"));
+const Orderpayment = lazy(() => import("./components/booking/Orderpayment"));
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+import { useAppSelector } from '@/lib/redux/store';
+import { selectIsAdmin, selectIsStaff, selectAuthUser } from '@/lib/redux/reducers/auth/selectors';
+import useSocket from '@/hooks/useSocket';
 
 const App: React.FC = () => {
   const location = useLocation();
   const isAdminPath = location.pathname.startsWith('/owner');
   const isStaffPath = location.pathname.startsWith('/staff');
 
-  const userDataRaw = localStorage.getItem('userData');
-  const userData: UserData | null = userDataRaw ? JSON.parse(userDataRaw) : null;
+  const isAdmin = useAppSelector(selectIsAdmin);
+  const isStaff = useAppSelector(selectIsStaff);
+  const user = useAppSelector(selectAuthUser);
 
-  // Simple guards
-  const isStaff = userData?.role === 'staff' || userData?.role === 'admin';
-  const isAdmin = userData?.role === 'admin' || userData?.role === 'hotelOwner';
+  useSocket();
 
   if (isStaffPath && !isStaff) {
     return <Navigate to="/login" replace />;
@@ -71,59 +85,63 @@ const App: React.FC = () => {
         theme="light"
       />
 
-      {/* Conditionally render Navbar/Footer, SidebarAdmin, or SidebarStaff based on the path */}
-      {isAdminPath ? (
-        <div className="flex min-h-screen">
-          <SidebarAdmin />
-          <main className="flex-grow ml-64 bg-gray-50">
-            <Routes>
-              <Route path="/owner" element={<HomeAdmin />} />
-              <Route path="/owner/bookings" element={<BookingStaff />} />
-              <Route path="/owner/user" element={<UserAdmin />} />
-              <Route path="/owner/room-types" element={<RoomTypeAdmin />} />
-              <Route path="/owner/rooms" element={<RoomAdmin />} />
-              <Route path="/owner/promotions" element={<PromotionAdmin />} />
-            </Routes>
-          </main>
-        </div>
-      ) : isStaffPath ? (
-        <div className="flex min-h-screen">
-          <SidebarStaff />
-          <main className="flex-grow ml-64 bg-gray-50">
-            <Routes>
-              <Route path="/staff" element={<HomeStaff />} />
-              <Route path="/staff/bookings" element={<BookingStaff />} />
-              <Route path="/staff/rooms" element={<RoomStaff />} />
-              <Route path="/staff/room-types" element={<RoomTypeStaff />} />
-              <Route path="/staff/users" element={<UserStaff />} />
-            </Routes>
-          </main>
-        </div>
-      ) : (
-        <>
-          <Navbar />
-          <main className="flex-grow">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/promotions" element={<Promotions />} />
-              <Route path="/promotion-history" element={<PromotionHistory />} />
-              <Route path="/rooms" element={<SearchPage />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot" element={<Forgot />} />
-              <Route path="/profile" element={<ViewProfile />} />
-              <Route path="/my-bookings" element={<MyBookings />} />
-              <Route path="/topup" element={<VNPayTopup />} />
-              <Route path="/vnpay-return" element={<VNPayReturn />} />
-              <Route path="/search" element={<GlobalSearch />} />
-              <Route path="/booking" element={<Booking />} />
-              <Route path="/payment" element={<PaymentBooking />} />
-              <Route path="/order-payment" element={<Orderpayment />} />
-            </Routes>
-          </main>
-          <Footer />
-        </>
-      )}
+      <Suspense fallback={<LoadingScreen />}>
+        {isAdminPath ? (
+          <div className="flex min-h-screen">
+            <SidebarAdmin />
+            <main className="flex-grow ml-64 bg-gray-50">
+              <Routes>
+                <Route path="/owner" element={<HomeAdmin />} />
+                <Route path="/owner/bookings" element={<BookingStaff />} />
+                <Route path="/owner/user" element={(user?.role === 'admin' || user?.role === 'hotelOwner') ? <UserAdmin /> : <Navigate to="/owner" replace />} />
+                <Route path="/owner/staff" element={<StaffAdmin />} />
+                <Route path="/owner/room-types" element={<RoomTypeAdmin />} />
+                <Route path="/owner/rooms" element={<RoomAdmin />} />
+                <Route path="/owner/promotions" element={<PromotionAdmin />} />
+                <Route path="/owner/comments" element={<CommentAdmin />} />
+              </Routes>
+            </main>
+          </div>
+        ) : isStaffPath ? (
+          <div className="flex min-h-screen">
+            <SidebarStaff />
+            <main className="flex-grow ml-64 bg-gray-50">
+              <Routes>
+                <Route path="/staff" element={<HomeStaff />} />
+                <Route path="/staff/bookings" element={<BookingStaff />} />
+                <Route path="/staff/rooms" element={<RoomStaff />} />
+                <Route path="/staff/room-types" element={<RoomTypeStaff />} />
+                <Route path="/staff/users" element={<UserStaff />} />
+                <Route path="/staff/manage-staff" element={<StaffManager />} />
+              </Routes>
+            </main>
+          </div>
+        ) : (
+          <>
+            <Navbar />
+            <main className="flex-grow">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/promotions" element={<Promotions />} />
+                <Route path="/promotion-history" element={<Promotionhistory />} />
+                <Route path="/rooms" element={<SearchPage />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot" element={<ForgotPassword />} />
+                <Route path="/profile" element={<Viewprofile />} />
+                <Route path="/my-bookings" element={<MyBookings />} />
+                <Route path="/topup" element={<VNPayTopup />} />
+                <Route path="/vnpay-return" element={<VNPayReturn />} />
+                <Route path="/search" element={<GlobalSearch />} />
+                <Route path="/booking" element={<Booking />} />
+                <Route path="/payment" element={<PaymentBooking />} />
+                <Route path="/order-payment" element={<Orderpayment />} />
+              </Routes>
+            </main>
+            <Footer />
+          </>
+        )}
+      </Suspense>
     </div>
   );
 };

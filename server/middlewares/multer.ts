@@ -1,14 +1,14 @@
-import multer, { FileFilterCallback } from "multer";
-import { Request } from "express";
+import multer from "multer";
 
 const storage = multer.memoryStorage();
 
-const upload = multer({
+// Middleware upload cho ảnh (như cũ)
+export const uploadImage = multer({
     storage: storage,
     limits: {
         fileSize: 5 * 1024 * 1024, // 5MB
     },
-    fileFilter: (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+    fileFilter: (_req: any, file: any, cb: any) => {
         if (file.mimetype.startsWith("image/")) {
             cb(null, true);
         } else {
@@ -17,4 +17,12 @@ const upload = multer({
     },
 });
 
-export default upload;
+// Middleware upload cho Excel
+export const uploadExcel = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+    },
+});
+
+export default uploadImage;

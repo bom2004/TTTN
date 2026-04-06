@@ -1,34 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import Hero from '../components/Hero';
-import { RoomType, Room, ApiResponse } from '../types';
+import { useAppDispatch, useAppSelector } from '../lib/redux/store';
+import { fetchAllRoomsThunk, selectAllRooms } from '../lib/redux/reducers/room';
+import { fetchAllRoomTypesThunk, selectAllRoomTypes } from '../lib/redux/reducers/room-type';
+import Viewdetails from '../components/booking/Viewdetails';
 
 const Home: React.FC = () => {
-    const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-    const [rooms, setRooms] = useState<Room[]>([]);
+    const dispatch = useAppDispatch();
     const navigate = useNavigate();
-    const backendUrl = "http://localhost:3000";
+
+    const rooms = useAppSelector(selectAllRooms);
+    const roomTypes = useAppSelector(selectAllRoomTypes);
+
+    const [selectedRoom, setSelectedRoom] = useState<any>(null);
+    const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [typesRes, roomsRes] = await Promise.all([
-                    axios.get<ApiResponse<RoomType[]>>(`${backendUrl}/api/room-types`),
-                    axios.get<ApiResponse<Room[]>>(`${backendUrl}/api/rooms`)
-                ]);
-                if (typesRes.data.success && typesRes.data.data) {
-                    setRoomTypes(typesRes.data.data.filter(t => t.isActive));
-                }
-                if (roomsRes.data.success && roomsRes.data.data) {
-                    setRooms(roomsRes.data.data);
-                }
-            } catch (error) {
-                console.error("Error loading data", error);
-            }
-        };
-        fetchData();
-    }, []);
+        dispatch(fetchAllRoomTypesThunk());
+        dispatch(fetchAllRoomsThunk());
+    }, [dispatch]);
 
     return (
         <div className='bg-[#f5f5f5] min-h-screen font-sans'>
@@ -74,7 +65,10 @@ const Home: React.FC = () => {
                         {roomTypes.map((type) => (
                             <div
                                 key={type._id}
-                                onClick={() => navigate(`/rooms?type=${encodeURIComponent(type.name)}`)}
+                                onClick={() => {
+                                    setSelectedRoom(type);
+                                    setIsViewDetailsOpen(true);
+                                }}
                                 className="group cursor-pointer flex flex-col"
                             >
                                 <div className="relative overflow-hidden rounded-2xl aspect-[4/3] mb-4 shadow-xl border border-white">
@@ -93,11 +87,11 @@ const Home: React.FC = () => {
                                 <h3 className="text-[#1a1a1a] font-black text-lg group-hover:text-[#006ce4] transition-colors mb-1">{type.name}</h3>
                                 <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">
                                     {rooms.filter(r => {
-                                        const rType = r.roomType;
+                                        const rType = (r as any).roomTypeId || (r as any).roomType;
                                         if (typeof rType === 'string') {
                                             return rType === type.name || rType === type._id;
                                         }
-                                        return (rType as any)?._id === type._id || (rType as any)?.name === type.name;
+                                        return rType?._id === type._id || rType?.name === type.name;
                                     }).length}+ chỗ nghỉ
                                 </p>
                             </div>
@@ -106,6 +100,19 @@ const Home: React.FC = () => {
 
                 </section>
             </main>
+
+            {/* Lớp phủ hiển thị chi tiết phòng khi được chọn (View Details Overlay) */}
+            {isViewDetailsOpen && selectedRoom && (
+                <div className="fixed inset-0 z-[100] bg-white overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
+                    <Viewdetails
+                        room={selectedRoom}
+                        onClose={() => {
+                            setIsViewDetailsOpen(false);
+                            setSelectedRoom(null);
+                        }}
+                    />
+                </div>
+            )}
         </div>
     );
 };

@@ -1,17 +1,15 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import axios from 'axios';
-import { Room, UserData } from '../../types';
+import { Room } from '../../types';
+import { useAppSelector } from '../../lib/redux/store';
+import { selectAuthUser } from '../../lib/redux/reducers/auth';
 
 const PaymentBooking: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const backendUrl = "http://localhost:3000";
 
-    const { room, customerInfo, checkIn, checkOut, numNights, totalAmount, finalAmount, discountInfo, promotionCode, priceUnit, specialRequests, checkInTime } = location.state || {};
-    const userDataRaw = localStorage.getItem('userData');
-    const userData: UserData | null = userDataRaw ? JSON.parse(userDataRaw) : null;
+    const { room, customerInfo, checkIn, checkOut, numNights, totalAmount, finalAmount, discountInfo, promotionCode, priceUnit, specialRequests, checkInTime, roomQuantity = 1 } = location.state || {};
+    const userData = useAppSelector(selectAuthUser);
 
     if (!room) {
         return (
@@ -30,7 +28,8 @@ const PaymentBooking: React.FC = () => {
         navigate('/order-payment', { 
             state: { 
                 ...location.state, 
-                paymentType: type 
+                paymentType: type,
+                roomQuantity
             } 
         });
     };
@@ -83,7 +82,7 @@ const PaymentBooking: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-slate-500 font-medium">Phòng:</span>
-                                    <span className="font-bold text-[#003580]">{room.name}</span>
+                                    <span className="font-bold text-[#003580]">{room.name} (x{roomQuantity})</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-slate-500 font-medium">Thời gian:</span>

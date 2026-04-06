@@ -1,761 +1,642 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState, useMemo } from 'react';
+import { exportInvoice } from '../utils/exportInvoice';
 import { toast } from 'react-toastify';
-import { useNavigate } from 'react-router-dom';
-import { ApiResponse, UserData } from '../types';
+import { useAppDispatch, useAppSelector } from '../lib/redux/store';
+import {
+    fetchMyBookingsThunk,
+    cancelMyBookingThunk,
+    selectAllBookings,
+    selectBookingLoading,
+} from '../lib/redux/reducers/booking';
+import { selectAuthUser, selectIsLoggedIn } from '../lib/redux/reducers/auth/selectors';
+import { Link, useNavigate } from 'react-router-dom';
+import axiosInstance from '../lib/redux/api/axiosInstance';
 
-interface BookingDetail {
-    _id: string;
-    bookingId: string;
-    roomId: {
-        _id: string;
-        name: string;
-        roomType: string;
-        thumbnail: string;
-        avatar?: string;
-    };
-    price: number;
-    roomStatus: string;
-}
+const ReviewModal: React.FC<{ booking: any; onClose: () => void; onSaved: () => void }> = ({ booking, onClose, onSaved }) => {
+    const [rating, setRating] = useState<number>(5);
+    const [comment, setComment] = useState<string>("");
+    const [loading, setLoading] = useState<boolean>(false);
+    const user = useAppSelector(selectAuthUser);
 
-interface Booking {
-    _id: string;
-    userId: string;
-    customerInfo: {
-        name: string;
-        email: string;
-        phone: string;
-    };
-    checkInDate: string;
-    checkOutDate: string;
-    totalAmount: number;
-    discountAmount: number;
-    finalAmount: number;
-    promotionCode: string;
-    status: 'pending' | 'confirmed' | 'checked_in' | 'checked_out' | 'completed' | 'cancelled';
-    paymentStatus: 'unpaid' | 'paid' | 'deposited';
-    paymentMethod: 'vnpay' | 'cash' | 'balance' | 'wallet';
-    paidAmount?: number;
-    checkInTime: string;
-    specialRequests: string;
-    details?: BookingDetail[];
-    createdAt: string;
-}
-
-const MyBookings: React.FC = () => {
-    const backendUrl = "http://localhost:3000";
-    const navigate = useNavigate();
-    const [bookings, setBookings] = useState<Booking[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [userData, setUserData] = useState<UserData | null>(null);
-    const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-    const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
-    const [filterStatus, setFilterStatus] = useState<string>('all');
-    const [searchTerm, setSearchTerm] = useState<string>('');
-    const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
-    const [currentPage, setCurrentPage] = useState<number>(1);
-    const ITEMS_PER_PAGE = 3;
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [filterStatus, searchTerm]);
-
-    useEffect(() => {
-        const storedUser = localStorage.getItem('userData');
-        if (storedUser) {
-            const user = JSON.parse(storedUser) as UserData;
-            setUserData(user);
-            fetchBookings(user.id || user._id!);
-        } else {
-            navigate('/login');
+    const handleSubmit = async () => {
+        if (!comment.trim()) {
+            toast.warn("Vui lòng nhập nội dung đánh giá");
+            return;
         }
-    }, [navigate]);
-
-    const fetchBookings = async (userId: string) => {
         try {
-            const response = await axios.get<ApiResponse<Booking[]>>(`${backendUrl}/api/bookings/user/${userId}`);
-            if (response.data.success && response.data.data) {
-                setBookings(response.data.data);
-                if (isDetailOpen && selectedBooking) {
-                    const updated = response.data.data.find(b => b._id === selectedBooking._id);
-                    if (updated) setSelectedBooking(updated);
-                }
+            setLoading(true);
+            const userId = user?.id || (user as any)?._id;
+            const res = await axiosInstance.post("/api/comments/add", {
+                userId,
+                roomTypeId: booking.roomTypeId?._id || booking.roomTypeInfo?._id || booking.roomTypeId,
+                bookingId: booking._id,
+                rating,
+                comment
+            });
+
+            if (res.data.success) {
+                toast.success("Cảm ơn bạn đã đánh giá!");
+                onSaved();
+                onClose();
             }
-        } catch (error) {
-            console.error("Lỗi lấy danh sách đặt phòng:", error);
-            toast.error("Không thể lấy danh sách đặt phòng");
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Lỗi khi gửi đánh giá");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCancelBooking = async (id: string) => {
-        if (!window.confirm("Bạn có chắc chắn muốn hủy đơn hàng này? Số tiền đã thanh toán sẽ được hoàn về Ví dư của bạn.")) return;
+    return (
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-hidden shadow-2xl">
+            <div className="bg-white w-full max-w-md rounded-[40px] overflow-hidden animate-in fade-in zoom-in duration-300 shadow-2xl">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[#006ce4]">rate_review</span>
+                        Đánh giá kỳ nghỉ
+                    </h3>
+                    <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all flex items-center justify-center">
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div className="p-8">
+                    <div className="flex flex-col items-center mb-8">
+                        <p className="text-gray-500 font-bold mb-4 text-center">Trải nghiệm của bạn tại phòng<br/><span className="text-[#006ce4] font-black">{booking.roomTypeId?.name || booking.roomTypeInfo?.name}</span> thế nào?</p>
+                        <div className="flex gap-2">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                    key={s}
+                                    onClick={() => setRating(s)}
+                                    className="transition-all hover:scale-125 active:scale-95"
+                                >
+                                    <span className={`material-symbols-outlined text-5xl ${s <= rating ? "text-[#febb02]" : "text-gray-200"}`}
+                                        style={{ fontVariationSettings: s <= rating ? "'FILL' 1" : "'FILL' 0" }}
+                                    >
+                                        star
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-4 px-4 py-1 rounded-full bg-[#febb02]/10 text-xs font-black text-[#febb02] uppercase tracking-widest border border-[#febb02]/20">
+                            {rating === 5 ? "Xuất sắc" : rating === 4 ? "Rất tốt" : rating === 3 ? "Hài lòng" : rating === 2 ? "Kém" : "Tệ"}
+                        </p>
+                    </div>
 
+                    <div className="space-y-6">
+                        <div>
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 px-1">Lời bình của bạn</label>
+                            <textarea
+                                className="w-full bg-gray-50 border-2 border-gray-100 rounded-3xl p-5 text-sm font-medium focus:border-[#006ce4] focus:bg-white outline-none transition-all resize-none h-32 focus:ring-4 focus:ring-blue-50"
+                                placeholder="Hãy chia sẻ trải nghiệm thực tế của bạn để giúp mọi người chọn được phòng tốt nhất..."
+                                value={comment}
+                                onChange={(e) => setComment(e.target.value)}
+                            ></textarea>
+                        </div>
+
+                        <button
+                            disabled={loading}
+                            onClick={handleSubmit}
+                            className="w-full bg-[#006ce4] text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-500/20 hover:bg-[#1a1a1a] transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 mb-2"
+                        >
+                            {loading ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            ) : (
+                                <>
+                                    <span>Gửi đánh giá ngay</span>
+                                    <span className="material-symbols-outlined text-lg">send</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const DetailModal: React.FC<{ booking: any; onClose: () => void; isCancellable: boolean; onCancel: (id: string) => void }> = ({ booking, onClose, isCancellable, onCancel }) => {
+    if (!booking) return null;
+    const nights = Math.ceil(
+        (new Date(booking.checkOutDate).getTime() - new Date(booking.checkInDate).getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    const formatPaymentMethod = (method: string) => {
+        const methods: Record<string, string> = {
+            cash: 'Tiền mặt',
+            bank_transfer: 'Chuyển khoản',
+            credit_card: 'Thẻ tín dụng',
+            wallet: 'Ví QuickStay',
+            momo: 'Ví MoMo',
+            zalopay: 'ZaloPay',
+            vnpay: 'VNPay'
+        };
+        return methods[method] || 'Chưa xác định';
+    };
+
+    return (
+        <div
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 backdrop-blur-md p-4 overflow-y-auto"
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+        >
+            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in duration-200">
+                {/* Modern Header */}
+                <div className="relative bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5">
+                    <button
+                        onClick={onClose}
+                        className="absolute top-5 right-5 text-white/70 hover:text-white transition-colors p-1"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    <div className="flex justify-between items-end">
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Chi tiết đặt phòng</h2>
+                            <p className="text-white/60 text-sm mt-1 font-mono">#{booking._id?.slice(-8).toUpperCase()}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-white/50 text-xs uppercase tracking-wider">Ngày đặt</p>
+                            <p className="text-white/90 text-sm font-medium">{new Date(booking.createdAt).toLocaleDateString('vi-VN')}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="px-6 py-6 space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+                    {/* Customer & Stay Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-slate-50 rounded-2xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                    <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                </div>
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Khách hàng</span>
+                            </div>
+                            <p className="font-semibold text-slate-900">{booking.customerInfo?.name}</p>
+                            <p className="text-sm text-slate-600 mt-1">{booking.customerInfo?.phone}</p>
+                            <p className="text-sm text-slate-600">{booking.customerInfo?.email}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lịch trình</span>
+                            </div>
+                            <p className="font-semibold text-slate-900">
+                                {new Date(booking.checkInDate).toLocaleDateString('vi-VN')} — {new Date(booking.checkOutDate).toLocaleDateString('vi-VN')}
+                            </p>
+                            <p className="text-sm text-slate-600 mt-1">{nights} đêm • {booking.roomQuantity} phòng</p>
+                            <p className="text-sm text-indigo-600 font-semibold mt-1">Check-in: {booking.checkInTime || '14:00'}</p>
+                        </div>
+                    </div>
+
+                    {/* Room Info */}
+                    <div className="bg-slate-50 rounded-2xl p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="w-7 h-7 bg-violet-100 rounded-lg flex items-center justify-center">
+                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                            </div>
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Thông tin phòng</span>
+                        </div>
+                        <div className="flex gap-4">
+                            <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
+                                <img
+                                    src={booking.roomTypeId?.image || booking.roomTypeInfo?.images?.[0] || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?w=200&h=200&fit=crop'}
+                                    className="w-full h-full object-cover"
+                                    alt=""
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <p className="font-bold text-slate-900">{booking.roomTypeId?.name || booking.roomTypeInfo?.name || 'Deluxe Room'}</p>
+                                <p className="text-sm text-slate-600 mt-1 line-clamp-2">
+                                    {booking.roomTypeId?.description || 'Trải nghiệm không gian sang trọng với đầy đủ tiện nghi'}
+                                </p>
+                                {booking.details && booking.details.length > 0 && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {booking.details.map((d: any, idx: number) => (
+                                            <span key={idx} className="text-xs font-medium text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">
+                                                🚪 Phòng {d.roomId?.roomNumber || d.roomId?.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Special Requests */}
+                    {booking.specialRequests && (
+                        <div className="bg-amber-50/80 rounded-2xl p-4 border border-amber-200">
+                            <div className="flex items-start gap-3">
+                                <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Yêu cầu đặc biệt</span>
+                                    <p className="text-sm text-amber-800 mt-1">{booking.specialRequests}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Payment Details */}
+                    <div className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-4 border border-slate-100">
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="w-7 h-7 bg-slate-200 rounded-lg flex items-center justify-center">
+                                <svg className="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                </svg>
+                            </div>
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chi tiết thanh toán</span>
+                        </div>
+                        <div className="space-y-2.5">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-600">Giá phòng ({nights} đêm)</span>
+                                <span className="text-slate-900 font-medium">{new Intl.NumberFormat('vi-VN').format(booking.totalAmount)}₫</span>
+                            </div>
+                            {booking.discountAmount > 0 && (
+                                <div className="flex justify-between text-sm text-emerald-600">
+                                    <span>🎉 Giảm giá ({booking.promotionCode})</span>
+                                    <span className="font-semibold">-{new Intl.NumberFormat('vi-VN').format(booking.discountAmount)}₫</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between pt-3 border-t border-slate-200">
+                                <span className="font-bold text-slate-900">Tổng tiền</span>
+                                <span className="font-bold text-xl text-indigo-600">{new Intl.NumberFormat('vi-VN').format(booking.finalAmount)}₫</span>
+                            </div>
+                            {booking.paidAmount > 0 && booking.paymentStatus !== 'paid' && (
+                                <>
+                                    <div className="flex justify-between text-sm text-blue-600">
+                                        <span>💰 Đã đặt cọc</span>
+                                        <span className="font-medium">-{new Intl.NumberFormat('vi-VN').format(booking.paidAmount)}₫</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm pt-1">
+                                        <span className="font-semibold text-rose-600">💳 Còn lại</span>
+                                        <span className="font-bold text-rose-600">{new Intl.NumberFormat('vi-VN').format(booking.finalAmount - booking.paidAmount)}₫</span>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-slate-200 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-slate-600">{formatPaymentMethod(booking.paymentMethod)}</span>
+                            </div>
+                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${booking.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {booking.paymentStatus === 'paid' ? '✓ Đã thanh toán' : '⏳ Chưa thanh toán'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-2">
+                        {isCancellable && (
+                            <button
+                                onClick={() => onCancel(booking._id)}
+                                className="flex-1 py-3 border-2 border-rose-200 text-rose-600 rounded-xl font-semibold text-sm hover:bg-rose-50 hover:border-rose-300 transition-all"
+                            >
+                                Hủy đặt phòng
+                            </button>
+                        )}
+                        {(booking.status === 'completed' || booking.paymentStatus === 'paid') && (
+                            <button
+                                onClick={() => exportInvoice(booking)}
+                                className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl font-semibold text-sm hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-md"
+                            >
+                                📄 Tải hóa đơn
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const MyBookings: React.FC = () => {
+    const navigate = useNavigate();
+    const dispatch = useAppDispatch();
+    const currentUser = useAppSelector(selectAuthUser);
+    const isLoggedIn = useAppSelector(selectIsLoggedIn);
+    const bookings = useAppSelector(selectAllBookings) as any[];
+    const loading = useAppSelector(selectBookingLoading);
+
+    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
+    const [reviewingBooking, setReviewingBooking] = useState<any>(null);
+
+    const userId = useMemo(() => {
+        if (!currentUser) return null;
+        return (currentUser.id || (currentUser as any)._id)?.toString() || null;
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!isLoggedIn) {
+            navigate('/login');
+            return;
+        }
+        if (userId) {
+            dispatch(fetchMyBookingsThunk(userId)).unwrap().catch(() => { });
+        }
+    }, [dispatch, userId, isLoggedIn, navigate]);
+
+    const handleCancelBooking = async (id: string) => {
+        if (!window.confirm("Bạn có chắc chắn muốn hủy đơn đặt phòng này không?")) return;
         try {
-            const response = await axios.put<ApiResponse<any>>(`${backendUrl}/api/bookings/${id}/cancel`);
-            if (response.data.success) {
-                toast.success(response.data.message);
-                if (userData) fetchBookings(userData.id || userData._id!);
-                setIsDetailOpen(false);
-            } else {
-                toast.error(response.data.message);
+            await dispatch(cancelMyBookingThunk(id)).unwrap();
+            toast.success("Đã hủy đơn đặt phòng thành công");
+            if (userId) {
+                dispatch(fetchMyBookingsThunk(userId));
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "Lỗi khi hủy đơn hàng");
+            toast.error(error?.message || error || "Lỗi khi hủy đơn hàng");
         }
     };
 
-    const handleContactSupport = (booking: Booking) => {
-        const supportMessage = `Xin chào, tôi cần hỗ trợ về đơn đặt phòng #${booking._id.slice(-8).toUpperCase()}. Mã phòng: ${booking.details?.[0]?.roomId?.name || 'N/A'}`;
-        window.open(`https://zalo.me/your-support-phone?text=${encodeURIComponent(supportMessage)}`, '_blank');
-    };
-
-    const handleViewInvoice = (booking: Booking) => {
-        navigate(`/invoice/${booking._id}`);
-    };
-
-    const getStatusBadge = (status: string) => {
-        const styles: { [key: string]: string } = {
-            'pending': 'bg-amber-100 text-amber-800 border-amber-200',
-            'confirmed': 'bg-blue-100 text-blue-800 border-blue-200',
-            'checked_in': 'bg-cyan-100 text-cyan-800 border-cyan-200',
-            'checked_out': 'bg-indigo-100 text-indigo-800 border-indigo-200',
-            'completed': 'bg-emerald-100 text-emerald-800 border-emerald-200',
-            'cancelled': 'bg-rose-100 text-rose-800 border-rose-200',
-        };
-        const labels: { [key: string]: string } = {
-            'pending': 'Chờ xác nhận',
-            'confirmed': 'Đã xác nhận',
-            'checked_in': 'Đã nhận phòng',
-            'checked_out': 'Đã trả phòng',
-            'completed': 'Hoàn thành',
-            'cancelled': 'Đã hủy',
-        };
-        return (
-            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
-                {labels[status] || status}
-            </span>
-        );
-    };
-
-    const getPaymentStatusBadge = (status: string) => {
-        const styles: { [key: string]: string } = {
-            'unpaid': 'bg-gray-100 text-gray-700',
-            'paid': 'bg-gradient-to-r from-emerald-500 to-green-500 text-white',
-            'deposited': 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
-        };
-        const labels: { [key: string]: string } = {
-            'unpaid': 'Chưa thanh toán',
-            'paid': 'Đã thanh toán',
-            'deposited': 'Đã đặt cọc',
-        };
-        return (
-            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter ${styles[status]}`}>
-                {labels[status]}
-            </span>
-        );
-    };
-
-    const getTotalNights = (checkIn: string, checkOut: string) => {
-        const start = new Date(checkIn);
-        const end = new Date(checkOut);
-        const diffTime = Math.abs(end.getTime() - start.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
+    const getStatusStyle = (status: string) => {
+        switch (status) {
+            case 'pending': return 'bg-amber-100 text-amber-700';
+            case 'confirmed': return 'bg-indigo-100 text-indigo-700';
+            case 'checked_in': return 'bg-emerald-100 text-emerald-700';
+            case 'checked_out': return 'bg-blue-100 text-blue-700';
+            case 'completed': return 'bg-teal-100 text-teal-700';
+            case 'cancelled': return 'bg-rose-100 text-rose-700';
+            default: return 'bg-slate-100 text-slate-700';
+        }
     };
 
     const getStatusLabel = (status: string) => {
-        const labels: { [key: string]: string } = {
-            'all': 'Tất cả đơn hàng',
-            'pending': 'Chờ xác nhận',
-            'confirmed': 'Đã xác nhận',
-            'checked_in': 'Đã nhận phòng',
-            'checked_out': 'Đã trả phòng',
-            'completed': 'Hoàn thành',
-            'cancelled': 'Đã hủy',
+        const labels: Record<string, string> = {
+            pending: '⏳ Chờ duyệt',
+            confirmed: '✓ Đã xác nhận',
+            checked_in: '🏠 Đã nhận phòng',
+            checked_out: '🚪 Đã trả phòng',
+            completed: '✨ Hoàn tất',
+            cancelled: '✕ Đã hủy'
         };
-        return labels[status] || 'Tất cả';
+        return labels[status] || status;
     };
 
-    const statusOptions = [
-        { value: 'all', label: 'Tất cả đơn hàng', icon: 'list', color: 'text-blue-600' },
-        { value: 'pending', label: 'Chờ xác nhận', icon: 'schedule', color: 'text-amber-600' },
-        { value: 'confirmed', label: 'Đã xác nhận', icon: 'check_circle', color: 'text-blue-600' },
-        { value: 'checked_in', label: 'Đã nhận phòng', icon: 'meeting_room', color: 'text-cyan-600' },
-        { value: 'checked_out', label: 'Đã trả phòng', icon: 'logout', color: 'text-indigo-600' },
-        { value: 'completed', label: 'Hoàn thành', icon: 'done_all', color: 'text-emerald-600' },
-        { value: 'cancelled', label: 'Đã hủy', icon: 'cancel', color: 'text-rose-600' },
-    ];
+    const isCancellable = (booking: any) => {
+        if (!booking) return false;
+        if (booking.status !== 'pending' && booking.status !== 'confirmed') return false;
 
-    const filteredBookings = bookings.filter(booking => {
-        const matchesStatus = filterStatus === 'all' || booking.status === filterStatus;
-        const matchesSearch = searchTerm === '' ||
-            booking._id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            booking.customerInfo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            booking.customerInfo.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            booking.details?.[0]?.roomId?.name.toLowerCase().includes(searchTerm.toLowerCase());
-        return matchesStatus && matchesSearch;
-    });
+        const now = new Date();
+        const checkInDate = new Date(booking.checkInDate);
+        if (booking.status === 'pending') return true;
 
-    const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
-    const paginatedBookings = filteredBookings.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
-    );
+        const diffInHours = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+        return diffInHours > 24;
+    };
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-50 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                    <p className="text-sm font-bold text-blue-600/70">Đang tải danh sách đặt chỗ...</p>
-                </div>
-            </div>
-        );
-    }
+    const filteredBookings = bookings.filter(b => statusFilter === 'all' || b.status === statusFilter);
+    const selectedBooking = bookings.find(b => b._id === selectedBookingId) || null;
+
+    const stats = {
+        total: bookings.length,
+        upcoming: bookings.filter(b => ['pending', 'confirmed'].includes(b.status)).length,
+        completed: bookings.filter(b => b.status === 'completed').length,
+    };
+
+    if (!isLoggedIn || !currentUser) return null;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-50 py-12 px-4">
-            {/* Animated Wave Background */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-blue-200/30 to-transparent"></div>
-                <svg className="absolute bottom-0 left-0 w-full h-48" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
-                    <path fill="rgba(59, 130, 246, 0.1)" fillOpacity="1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-                </svg>
-            </div>
-
-            <div className="max-w-6xl mx-auto relative z-10">
-                <header className="mb-10 text-center">
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-800 to-cyan-700 bg-clip-text text-transparent tracking-tight mb-2">
-                        Đặt chỗ của tôi
-                    </h1>
-                    <p className="text-blue-500/80 font-medium">Xem lại lịch sử và trạng thái các đơn đặt phòng của bạn</p>
-                </header>
-
-                {/* Search and Filter Section */}
-                <div className="mb-8 flex flex-col md:flex-row gap-4">
-                    {/* Search Bar - Extended */}
-                    <div className="flex-1 relative group">
-                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-2xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="relative">
-                            <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-blue-400 text-2xl">
-                                search
-                            </span>
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm theo mã đơn, tên khách hàng, email, tên phòng..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-14 pr-5 py-4 bg-white/90 backdrop-blur-sm border-2 border-blue-100 rounded-2xl focus:border-blue-400 focus:ring-4 focus:ring-blue-200 transition-all outline-none text-slate-700 placeholder:text-slate-400 text-base shadow-lg"
-                            />
-                            {searchTerm && (
-                                <button
-                                    onClick={() => setSearchTerm('')}
-                                    className="absolute right-5 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600 transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-xl">close</span>
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Status Dropdown */}
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 pt-24 pb-16 px-4">
+            <div className="max-w-7xl mx-auto">
+                {/* Hero Header */}
+                <div className="relative mb-10">
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/5 via-purple-600/5 to-pink-600/5 rounded-3xl blur-3xl"></div>
                     <div className="relative">
-                        <button
-                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="px-6 py-4 bg-white/90 backdrop-blur-sm border-2 border-blue-100 rounded-2xl hover:border-blue-400 transition-all shadow-lg flex items-center gap-3 min-w-[200px] justify-between"
-                        >
-                            <div className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-blue-500">
-                                    {statusOptions.find(opt => opt.value === filterStatus)?.icon || 'filter_list'}
-                                </span>
-                                <span className="font-semibold text-slate-700">
-                                    {getStatusLabel(filterStatus)}
-                                </span>
-                            </div>
-                            <span className="material-symbols-outlined text-blue-400">
-                                {isDropdownOpen ? 'expand_less' : 'expand_more'}
-                            </span>
-                        </button>
-
-                        {isDropdownOpen && (
-                            <>
-                                <div
-                                    className="fixed inset-0 z-40"
-                                    onClick={() => setIsDropdownOpen(false)}
-                                ></div>
-                                <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-blue-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                                    {statusOptions.map(option => (
-                                        <button
-                                            key={option.value}
-                                            onClick={() => {
-                                                setFilterStatus(option.value);
-                                                setIsDropdownOpen(false);
-                                            }}
-                                            className={`w-full px-4 py-3 flex items-center gap-3 transition-all hover:bg-blue-50 group ${filterStatus === option.value ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                                                }`}
-                                        >
-                                            <span className={`material-symbols-outlined ${option.color} text-xl`}>
-                                                {option.icon}
-                                            </span>
-                                            <span className={`flex-1 text-left font-medium ${filterStatus === option.value ? 'text-blue-700 font-semibold' : 'text-slate-600'
-                                                }`}>
-                                                {option.label}
-                                            </span>
-                                            {filterStatus === option.value && (
-                                                <span className="material-symbols-outlined text-blue-500 text-sm">check</span>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </>
-                        )}
+                        <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                            Đặt phòng của tôi
+                        </h1>
+                        <p className="text-slate-500 mt-2 text-lg">
+                            Chào mừng trở lại, <span className="font-semibold text-slate-700">{currentUser.full_name}</span>
+                        </p>
                     </div>
                 </div>
 
-                {/* Statistics Summary */}
-                {bookings.length > 0 && (
-                    <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 border border-blue-100 text-center shadow-sm">
-                            <p className="text-2xl font-bold text-blue-600">{bookings.length}</p>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng đơn</p>
-                        </div>
-                        <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 border border-blue-100 text-center shadow-sm">
-                            <p className="text-2xl font-bold text-emerald-600">
-                                {bookings.filter(b => b.status === 'completed').length}
-                            </p>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hoàn thành</p>
-                        </div>
-                        <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 border border-blue-100 text-center shadow-sm">
-                            <p className="text-2xl font-bold text-amber-600">
-                                {bookings.filter(b => b.status === 'pending').length}
-                            </p>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đang chờ</p>
-                        </div>
-                        <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 border border-blue-100 text-center shadow-sm">
-                            <p className="text-xl font-bold text-slate-700">
-                                {new Intl.NumberFormat('vi-VN').format(
-                                    bookings.reduce((sum, b) => sum + b.finalAmount, 0)
-                                )}₫
-                            </p>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng chi tiêu</p>
+                {/* Modern Stats Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+                    <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-100">
+                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 to-indigo-500/0 rounded-2xl group-hover:from-indigo-500/5 group-hover:to-purple-500/5 transition-all duration-300"></div>
+                        <div className="relative flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-slate-500 font-medium">Tổng đơn</p>
+                                <p className="text-4xl font-bold text-slate-900 mt-2">{stats.total}</p>
+                            </div>
+                            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                </svg>
+                            </div>
                         </div>
                     </div>
-                )}
-
-                {filteredBookings.length === 0 ? (
-                    <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-blue-100 p-16 text-center">
-                        <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <span className="material-symbols-outlined text-blue-400 text-5xl">search_off</span>
+                    <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-100">
+                        <div className="relative flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-slate-500 font-medium">Sắp tới</p>
+                                <p className="text-4xl font-bold text-indigo-600 mt-2">{stats.upcoming}</p>
+                            </div>
+                            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
+                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
                         </div>
-                        <h3 className="text-xl font-bold text-slate-700 mb-2">Không tìm thấy đơn đặt phòng</h3>
-                        <p className="text-slate-500 mb-8 max-w-sm mx-auto">
-                            {searchTerm || filterStatus !== 'all'
-                                ? 'Không có đơn đặt phòng nào phù hợp với bộ lọc của bạn.'
-                                : 'Bạn chưa thực hiện đặt phòng nào trên QuickStay.'}
-                        </p>
-                        {(searchTerm || filterStatus !== 'all') && (
-                            <button
-                                onClick={() => {
-                                    setSearchTerm('');
-                                    setFilterStatus('all');
-                                }}
-                                className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-8 py-3 rounded-xl font-bold hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg"
-                            >
-                                Xóa bộ lọc
-                            </button>
-                        )}
+                    </div>
+                    <div className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-100">
+                        <div className="relative flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-slate-500 font-medium">Đã hoàn thành</p>
+                                <p className="text-4xl font-bold text-teal-600 mt-2">{stats.completed}</p>
+                            </div>
+                            <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-200">
+                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Modern Filters */}
+                <div className="flex flex-wrap gap-3 mb-10">
+                    {[
+                        { label: '📋 Tất cả', value: 'all' },
+                        { label: '⏳ Chờ duyệt', value: 'pending' },
+                        { label: '✓ Đã xác nhận', value: 'confirmed' },
+                        { label: '🏠 Đã nhận phòng', value: 'checked_in' },
+                        { label: '🚪 Đã trả phòng', value: 'checked_out' },
+                        { label: '✨ Hoàn tất', value: 'completed' },
+                        { label: '✕ Đã hủy', value: 'cancelled' }
+                    ].map((opt) => (
+                        <button
+                            key={opt.value}
+                            onClick={() => setStatusFilter(opt.value)}
+                            className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${statusFilter === opt.value
+                                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-200'
+                                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Bookings List */}
+                {loading ? (
+                    <div className="grid grid-cols-1 gap-5">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="bg-white rounded-2xl border border-slate-100 h-40 animate-pulse shadow-sm"></div>
+                        ))}
+                    </div>
+                ) : filteredBookings.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-100 p-20 text-center shadow-sm">
+                        <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-900 mb-3">Chưa có đặt phòng nào</h3>
+                        <p className="text-slate-500 mb-8">Bắt đầu hành trình khám phá của bạn ngay hôm nay</p>
+                        <Link
+                            to="/"
+                            className="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-md"
+                        >
+                            🔍 Tìm phòng ngay
+                        </Link>
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        {paginatedBookings.map((booking) => (
-                            <div key={booking._id} className="bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg shadow-blue-200/50 border border-blue-100 hover:shadow-xl hover:shadow-blue-300/30 transition-all group">
-                                <div className="flex flex-col lg:flex-row">
-                                    {/* Room Thumbnail */}
-                                    <div className="lg:w-72 h-56 lg:h-auto overflow-hidden bg-gradient-to-br from-blue-100 to-cyan-100 relative">
-                                        {(booking.details && booking.details[0]?.roomId?.thumbnail) || (booking.details && (booking.details[0]?.roomId as any)?.avatar) ? (
-                                            <img
-                                                src={booking.details[0].roomId.thumbnail || (booking.details[0].roomId as any).avatar}
-                                                alt="Room"
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-blue-300 text-5xl">image</span>
+                    <div className="grid grid-cols-1 gap-5">
+                        {filteredBookings.map((booking) => {
+                            const nights = Math.ceil(
+                                (new Date(booking.checkOutDate).getTime() - new Date(booking.checkInDate).getTime()) / (1000 * 60 * 60 * 24)
+                            );
+                            return (
+                                <div
+                                    key={booking._id}
+                                    className="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl transition-all duration-500 hover:-translate-y-1"
+                                >
+                                    <div className="p-6">
+                                        <div className="flex flex-wrap gap-6">
+                                            {/* Image */}
+                                            <div className="relative w-28 h-28 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
+                                                <img
+                                                    src={booking.roomTypeId?.image || booking.roomTypeInfo?.images?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200&h=200&fit=crop'}
+                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                                    alt=""
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                                             </div>
-                                        )}
-                                        <div className="absolute top-4 left-4">
-                                            {getStatusBadge(booking.status)}
-                                        </div>
-                                        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/50 to-transparent"></div>
-                                        <div className="absolute bottom-4 left-4 text-white">
-                                            <p className="text-xs font-semibold">
-                                                {getTotalNights(booking.checkInDate, booking.checkOutDate)} ngày
-                                            </p>
-                                        </div>
-                                    </div>
 
-                                    {/* Main Info */}
-                                    <div className="flex-1 p-6 md:p-8">
-                                        <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
-                                            <div>
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                                                        {(booking.details && booking.details[0]?.roomId?.thumbnail) || (booking.details && (booking.details[0]?.roomId as any)?.avatar) ? (
-                                                            <img
-                                                                src={booking.details![0].roomId.thumbnail || (booking.details![0].roomId as any).avatar}
-                                                                alt=""
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <span className="material-symbols-outlined text-white text-xl">bed</span>
-                                                        )}
+                                            {/* Content */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex flex-wrap justify-between gap-4">
+                                                    <div className="space-y-3">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${getStatusStyle(booking.status)}`}>
+                                                                {getStatusLabel(booking.status)}
+                                                            </span>
+                                                            <span className="text-xs text-slate-400 font-mono bg-slate-50 px-2 py-1 rounded-lg">
+                                                                #{booking._id?.slice(-8).toUpperCase()}
+                                                            </span>
+                                                        </div>
+                                                        <h3 className="font-bold text-xl text-slate-900">
+                                                            {booking.roomTypeId?.name || booking.roomTypeInfo?.name || 'Deluxe Room'}
+                                                        </h3>
+                                                        <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                                </svg>
+                                                                <span>{new Date(booking.checkInDate).toLocaleDateString('vi-VN')}</span>
+                                                            </div>
+                                                            <span className="text-slate-300">→</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                                                </svg>
+                                                                <span>{nights} đêm</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                                                </svg>
+                                                                <span>{booking.roomQuantity} phòng</span>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <h3 className="text-lg font-bold text-slate-800 leading-tight">
-                                                        {booking.details && booking.details[0]?.roomId?.name ? booking.details[0].roomId.name : 'Thông tin phòng đang cập nhật'}
-                                                        {booking.details && booking.details.length > 1 && (
-                                                            <span className="text-blue-500 ml-2 text-sm"> (+{booking.details.length - 1} phòng)</span>
-                                                        )}
-                                                    </h3>
-                                                </div>
-                                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                                    Mã đơn: <span className="text-slate-700">{booking._id.slice(-8).toUpperCase()}</span>
-                                                </p>
-                                                <p className="text-xs text-slate-500 mt-1">
-                                                    Đặt ngày: {new Date(booking.createdAt).toLocaleDateString('vi-VN')}
-                                                </p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Thanh toán</p>
-                                                <p className="text-2xl font-bold text-slate-800">
-                                                    {new Intl.NumberFormat('vi-VN').format(booking.finalAmount)}₫
-                                                </p>
-                                                <div className="flex flex-col items-end gap-1 mt-2">
-                                                    {getPaymentStatusBadge(booking.paymentStatus)}
-                                                    {booking.paymentStatus === 'deposited' && (
-                                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                                                            Còn lại: {new Intl.NumberFormat('vi-VN').format(booking.finalAmount - (booking.paidAmount || (booking.finalAmount * 0.3)))}₫
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gradient-to-r from-blue-50/50 to-cyan-50/50 rounded-xl p-5 border border-blue-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-blue-500 shadow-sm">
-                                                    <span className="material-symbols-outlined text-lg">calendar_today</span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">Nhận phòng</p>
-                                                    <p className="text-sm font-bold text-slate-700">{new Date(booking.checkInDate).toLocaleDateString('vi-VN')}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-blue-500 shadow-sm">
-                                                    <span className="material-symbols-outlined text-lg">logout</span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">Trả phòng</p>
-                                                    <p className="text-sm font-bold text-slate-700">{new Date(booking.checkOutDate).toLocaleDateString('vi-VN')}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-blue-500 shadow-sm">
-                                                    <span className="material-symbols-outlined text-lg">schedule</span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">Giờ nhận</p>
-                                                    <p className="text-sm font-bold text-slate-700">{booking.checkInTime || '14:00'}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-                                            <div className="flex items-center gap-6">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="material-symbols-outlined text-slate-400 text-lg">payments</span>
-                                                    <p className="text-xs font-semibold text-slate-600">
-                                                        PTTT: <span className="text-slate-700 capitalize">{booking.paymentMethod === 'wallet' ? 'Ví QuickStay' : booking.paymentMethod}</span>
-                                                    </p>
-                                                </div>
-                                                {booking.promotionCode && (
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="material-symbols-outlined text-emerald-500 text-lg">loyalty</span>
-                                                        <p className="text-xs font-semibold text-emerald-600">
-                                                            Mã: <span className="font-black uppercase">{booking.promotionCode}</span>
+                                                    <div className="text-right">
+                                                        <p className="text-sm text-slate-500 font-medium">Tổng tiền</p>
+                                                        <p className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                                                            {new Intl.NumberFormat('vi-VN').format(booking.finalAmount)}₫
                                                         </p>
+                                                        <div className="flex gap-2 mt-3">
+                                                            <button
+                                                                onClick={() => { setSelectedBookingId(booking._id); setIsDetailOpen(true); }}
+                                                                className="px-4 py-2 text-sm text-indigo-600 font-semibold hover:bg-indigo-50 rounded-xl transition-colors"
+                                                            >
+                                                                Chi tiết
+                                                            </button>
+                                                            {booking.status === 'completed' && (
+                                                                <button
+                                                                    onClick={() => setReviewingBooking(booking)}
+                                                                    className="px-4 py-2 text-sm text-emerald-600 font-black hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100 shadow-sm hover:shadow-md flex items-center gap-1"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-lg">star</span>
+                                                                    Đánh giá
+                                                                </button>
+                                                            )}
+                                                            {isCancellable(booking) && (
+                                                                <button
+                                                                    onClick={() => handleCancelBooking(booking._id)}
+                                                                    className="px-4 py-2 text-sm text-rose-600 font-semibold hover:bg-rose-50 rounded-xl transition-colors"
+                                                                >
+                                                                    Hủy
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => handleViewInvoice(booking)}
-                                                    className="text-sm font-bold text-slate-600 hover:text-blue-600 flex items-center gap-1 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-50"
-                                                >
-                                                    <span className="material-symbols-outlined text-base">receipt</span>
-                                                    Hóa đơn
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedBooking(booking);
-                                                        setIsDetailOpen(true);
-                                                    }}
-                                                    className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 group/btn transition-colors"
-                                                >
-                                                    Xem chi tiết
-                                                    <span className="material-symbols-outlined text-base group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
-                                                </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <div className="flex justify-center items-center gap-2 mt-8">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="p-2 rounded-xl bg-white border border-blue-100 text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm flex items-center justify-center"
-                                >
-                                    <span className="material-symbols-outlined text-sm">chevron_left</span>
-                                </button>
-                                
-                                <div className="flex items-center gap-1">
-                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`w-10 h-10 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center justify-center ${
-                                                currentPage === page 
-                                                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-blue-200' 
-                                                    : 'bg-white border border-blue-100 text-slate-600 hover:bg-blue-50'
-                                            }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="p-2 rounded-xl bg-white border border-blue-100 text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm flex items-center justify-center"
-                                >
-                                    <span className="material-symbols-outlined text-sm">chevron_right</span>
-                                </button>
-                            </div>
-                        )}
+                            );
+                        })}
                     </div>
                 )}
             </div>
 
-            {/* MODAL CHI TIẾT ĐƠN HÀNG */}
+            {/* Modal */}
             {isDetailOpen && selectedBooking && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center px-4">
-                    <div
-                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setIsDetailOpen(false)}
-                    ></div>
-                    <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-blue-600 to-cyan-600 p-6 text-white flex justify-between items-center">
-                            <div>
-                                <h2 className="text-xl font-bold tracking-tight">Chi tiết đơn đặt phòng</h2>
-                                <p className="text-xs text-blue-100 font-semibold uppercase tracking-wider mt-1">Mã đơn: #{selectedBooking._id.slice(-8).toUpperCase()}</p>
-                            </div>
-                            <button
-                                onClick={() => setIsDetailOpen(false)}
-                                className="w-10 h-10 rounded-full hover:bg-white/10 transition-colors flex items-center justify-center"
-                            >
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
+                <DetailModal
+                    booking={selectedBooking}
+                    onClose={() => setIsDetailOpen(false)}
+                    isCancellable={isCancellable(selectedBooking)}
+                    onCancel={handleCancelBooking}
+                />
+            )}
 
-                        <div className="p-6 md:p-8 max-h-[80vh] overflow-y-auto custom-scrollbar">
-                            {/* Khách hàng */}
-                            <section className="mb-8">
-                                <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-sm">person</span>
-                                    Thông tin khách hàng
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Họ và tên</p>
-                                        <p className="text-sm font-bold text-slate-700">{selectedBooking.customerInfo.name}</p>
-                                    </div>
-                                    <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Số điện thoại</p>
-                                        <p className="text-sm font-bold text-slate-700">{selectedBooking.customerInfo.phone}</p>
-                                    </div>
-                                    <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 md:col-span-2">
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Địa chỉ Email</p>
-                                        <p className="text-sm font-bold text-slate-700">{selectedBooking.customerInfo.email}</p>
-                                    </div>
-                                </div>
-                            </section>
-
-                            {/* Phòng đặt */}
-                            <section className="mb-8">
-                                <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-sm">bed</span>
-                                    Thông tin phòng
-                                </h3>
-                                <div className="space-y-3">
-                                    {selectedBooking.details?.map((detail, idx) => (
-                                        <div key={idx} className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-                                            <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-blue-200 to-cyan-200 shrink-0">
-                                                <img src={detail.roomId?.thumbnail || ''} alt="" className="w-full h-full object-cover" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-sm font-bold text-slate-700">{detail.roomId?.name || 'Phòng không tên'}</p>
-                                                <p className="text-xs font-semibold text-slate-500">{detail.roomId?.roomType || 'N/A'}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm font-bold text-slate-700">{new Intl.NumberFormat('vi-VN').format(detail.price)}₫</p>
-                                                <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">/ ngày</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </section>
-
-                            {/* Thời gian & Yêu cầu */}
-                            <section className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div>
-                                    <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-sm">schedule</span>
-                                        Thời gian & Yêu cầu
-                                    </h3>
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Ngày nhận phòng:</span>
-                                            <span className="font-bold text-slate-700">{new Date(selectedBooking.checkInDate).toLocaleDateString('vi-VN')}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Ngày trả phòng:</span>
-                                            <span className="font-bold text-slate-700">{new Date(selectedBooking.checkOutDate).toLocaleDateString('vi-VN')}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Số ngày:</span>
-                                            <span className="font-bold text-slate-700">{getTotalNights(selectedBooking.checkInDate, selectedBooking.checkOutDate)} ngày</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Giờ nhận dự kiến:</span>
-                                            <span className="font-bold text-slate-700">{selectedBooking.checkInTime || '14:00'}</span>
-                                        </div>
-                                        <div className="pt-3">
-                                            <p className="text-xs font-bold text-slate-600 uppercase mb-2">Yêu cầu đặc biệt:</p>
-                                            <p className="text-sm font-medium text-slate-600 bg-gradient-to-r from-blue-50 to-cyan-50 p-3 rounded-xl border border-blue-100">
-                                                {selectedBooking.specialRequests || "Không có yêu cầu đặc biệt."}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-sm">payments</span>
-                                        Chi tiết thanh toán
-                                    </h3>
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Giá phòng/ngày:</span>
-                                            <span className="font-bold text-slate-700">
-                                                {selectedBooking.details && selectedBooking.details[0]
-                                                    ? new Intl.NumberFormat('vi-VN').format(selectedBooking.details[0].price)
-                                                    : '0'}₫
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Số ngày:</span>
-                                            <span className="font-bold text-slate-700">{getTotalNights(selectedBooking.checkInDate, selectedBooking.checkOutDate)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Tổng tiền phòng:</span>
-                                            <span className="font-bold text-slate-700">{new Intl.NumberFormat('vi-VN').format(selectedBooking.totalAmount)}₫</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Giảm giá:</span>
-                                            <span className="font-bold text-emerald-600">-{new Intl.NumberFormat('vi-VN').format(selectedBooking.discountAmount)}₫</span>
-                                        </div>
-                                        <div className="flex justify-between items-center pt-3 border-t border-blue-100">
-                                            <span className="font-semibold text-slate-600">Đã thanh toán:</span>
-                                            <span className="font-bold text-slate-700">
-                                                {new Intl.NumberFormat('vi-VN').format(
-                                                    selectedBooking.paidAmount ||
-                                                    (selectedBooking.paymentStatus === 'paid' ? selectedBooking.finalAmount :
-                                                        selectedBooking.paymentStatus === 'deposited' ? selectedBooking.finalAmount * 0.3 : 0)
-                                                )}₫
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-600">Còn lại:</span>
-                                            <span className="font-bold text-rose-600">
-                                                {new Intl.NumberFormat('vi-VN').format(
-                                                    Math.max(0, selectedBooking.finalAmount - (
-                                                        selectedBooking.paidAmount ||
-                                                        (selectedBooking.paymentStatus === 'paid' ? selectedBooking.finalAmount :
-                                                            selectedBooking.paymentStatus === 'deposited' ? selectedBooking.finalAmount * 0.3 : 0)
-                                                    ))
-                                                )}₫
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between items-center pt-3 border-t border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 -mx-4 px-4 py-3 rounded-lg">
-                                            <span className="font-bold text-slate-700 uppercase text-xs">Tổng đơn hàng:</span>
-                                            <span className="text-xl font-bold text-slate-800">
-                                                {new Intl.NumberFormat('vi-VN').format(selectedBooking.finalAmount)}₫
-                                            </span>
-                                        </div>
-                                        <div className="mt-2 text-right">
-                                            {getPaymentStatusBadge(selectedBooking.paymentStatus)}
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
-                        </div>
-
-                        {/* Footer Action */}
-                        <div className="p-6 bg-gradient-to-r from-blue-50 to-cyan-50 border-t border-blue-100 flex justify-end gap-3">
-                            <button
-                                onClick={() => handleViewInvoice(selectedBooking)}
-                                className="px-6 py-2.5 bg-white border border-blue-200 text-slate-600 font-bold text-sm rounded-xl hover:bg-blue-50 transition flex items-center gap-2"
-                            >
-                                <span className="material-symbols-outlined text-base">receipt</span>
-                                Xem hóa đơn
-                            </button>
-                            <button
-                                onClick={() => setIsDetailOpen(false)}
-                                className="px-6 py-2.5 bg-white border border-blue-200 text-slate-600 font-bold text-sm rounded-xl hover:bg-blue-50 transition"
-                            >
-                                Đóng lại
-                            </button>
-
-                            {['pending', 'confirmed'].includes(selectedBooking.status) &&
-                                (new Date().getTime() - new Date(selectedBooking.createdAt).getTime()) <= (6 * 60 * 60 * 1000) && (
-                                    <button
-                                        onClick={() => handleCancelBooking(selectedBooking._id)}
-                                        className="px-6 py-2.5 bg-gradient-to-r from-rose-500 to-rose-600 text-white font-bold text-sm rounded-xl hover:from-rose-600 hover:to-rose-700 transition shadow-lg shadow-rose-200"
-                                    >
-                                        Hủy đơn & Hoàn tiền
-                                    </button>
-                                )}
-
-                            {selectedBooking.status === 'confirmed' && (
-                                <button
-                                    onClick={() => handleContactSupport(selectedBooking)}
-                                    className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm rounded-xl hover:from-blue-700 hover:to-cyan-700 transition shadow-lg shadow-blue-200"
-                                >
-                                    Liên hệ hỗ trợ
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
+            {/* Review Modal */}
+            {reviewingBooking && (
+                <ReviewModal
+                    booking={reviewingBooking}
+                    onClose={() => setReviewingBooking(null)}
+                    onSaved={() => {
+                        if (userId) dispatch(fetchMyBookingsThunk(userId));
+                    }}
+                />
             )}
         </div>
     );

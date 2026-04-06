@@ -37,56 +37,76 @@ export const handleRoomImageUpload = async (name: string, files: any, isUpdate: 
 };
 
 /**
- * Service: Tính toán phòng trống thực tế trong một khoảng thời gian (Dynamic Availability)
+ * Service: Tính toán phòng trống theo loại phòng (Inventory-based)
  */
 export const calculateRoomAvailability = async (
-    rooms: any[],
+    roomTypes: any[],
     checkIn: string | Date | undefined,
     checkOut: string | Date | undefined
 ) => {
-    // 1. Chuẩn hóa ngày (Mặc định là hôm nay và ngày mai nếu không có)
     const targetIn = normalizeDateUTC(checkIn || new Date());
     const targetOut = normalizeDateUTC(checkOut || new Date(new Date().setDate(new Date().getDate() + 1)));
 
-    // 2. Tìm các đơn đặt trùng khoảng thời gian (Confirmed/Pending)
+    // Lấy các đơn đặt trùng khoảng thời gian (Confirmed/Pending/Checked-in)
     const activeBookings = await bookingModel.find({
-        status: { $nin: ['cancelled', 'completed'] },
+        status: { $nin: ['cancelled', 'completed', 'checked_out'] },
         checkInDate: { $lt: targetOut },
         checkOutDate: { $gt: targetIn }
     });
 
-    // 3. Đếm số lượng loại phòng đã bị đặt
-    const bookedCountByRoom: Record<string, number> = {};
+    // Gom số phòng đã đặt theo roomTypeId
+    const bookedCountByRoomType: Record<string, number> = {};
     if (activeBookings.length > 0) {
-        const ids = activeBookings.map(b => b._id);
-        const details = await bookingDetailModel.find({
-            bookingId: { $in: ids },
-            roomStatus: { $ne: 'cancelled' }
-        });
-
-        for (const detail of details) {
-            const rid = detail.roomId.toString();
-            bookedCountByRoom[rid] = (bookedCountByRoom[rid] || 0) + 1;
+        for (const b of activeBookings) {
+            const rtId = b.roomTypeId?.toString();
+            if (rtId) {
+                bookedCountByRoomType[rtId] = (bookedCountByRoomType[rtId] || 0) + (b.roomQuantity || 1);
+            }
         }
     }
+    
+    // Lấy tổng số lượng phòng vật lý thực tế không bị bảo trì (bán được)
+    const physicalRoomsCountList = await roomModel.aggregate([
+        { $match: { status: { $ne: 'maintenance' } } },
+        { $group: { _id: "$roomTypeId", count: { $sum: 1 } } }
+    ]);
+    const physicalCountMap = new Map();
+    physicalRoomsCountList.forEach(c => physicalCountMap.set(c._id.toString(), c.count));
 
-    // 4. Map lại danh sách phòng với trạng thái thực tế
-    return rooms.map(room => {
-        const ridStr = room._id.toString();
-        const booked = bookedCountByRoom[ridStr] || 0;
-        let baseAvail = Number(room.availableRooms || 0);
-
-        // --- FALLBACK: Khôi phục capacity nếu DB lỗi kẹt ở 0 (như logic cũ) ---
-        if (baseAvail < 1 && booked === 0) {
-            baseAvail = 1; 
-        }
+    // Map lại danh sách loại phòng với inventory thực tế để cho phép đặt
+    return roomTypes.map(rt => {
+        const rtIdStr = rt._id.toString();
+        const booked = bookedCountByRoomType[rtIdStr] || 0;
+        
+        // Ưu tiên dùng số lượng phòng vật lý đếm được từ aggregation
+        // Nếu không tìm thấy (có thể do chưa tạo phòng hoặc lỗi mapping), dùng totalInventory từ Loại phòng làm fallback
+        const baseAvail = physicalCountMap.has(rtIdStr) ? physicalCountMap.get(rtIdStr) : (rt.totalInventory || 0);
 
         const realTimeAvail = Math.max(0, baseAvail - booked);
         
         return {
-            ...room,
+            ...rt,
             availableRooms: realTimeAvail,
-            status: realTimeAvail <= 0 ? 'sold_out' : 'available'
+            status: realTimeAvail <= 0 ? 'sold_out' : 'available',
+            // Gán thêm roomType vào chính nó vì component ở FE đang đọc `room.roomType` để hiển thị
+            roomType: rt.name,
+            price: rt.basePrice // Component đọc room.price nên ta map basePrice sang price
         };
     });
+};
+
+/**
+ * Service: Đồng bộ tổng số lượng phòng vào Loại phòng (Lưu trực tiếp DB)
+ */
+export const syncRoomTypeInventory = async (roomTypeId: string) => {
+    try {
+        const { default: roomTypeModel } = await import('../models/roomTypeModel.ts');
+        
+        // Cập nhật tổng số lượng phòng (ALL rooms)
+        const totalCount = await roomModel.countDocuments({ roomTypeId: roomTypeId });
+        
+        await roomTypeModel.findByIdAndUpdate(roomTypeId, { totalInventory: totalCount });
+    } catch (error) {
+        console.error("Lỗi khi đồng bộ số lượng loại phòng:", error);
+    }
 };

@@ -1,60 +1,41 @@
 import { Request, Response } from "express";
 import roomModel from "../models/roomModel.ts";
-import { 
-    parseAmenitiesObject, 
-    normalizeDateUTC 
+import {
+    parseAmenitiesObject,
+    normalizeDateUTC
 } from "../utils/roomUtils.ts";
-import { 
-    handleRoomImageUpload, 
-    calculateRoomAvailability 
+import {
+    handleRoomImageUpload,
+    calculateRoomAvailability,
+    syncRoomTypeInventory
 } from "../services/roomService.ts";
+import { emitToAll } from "../socket.ts";
 
 /**
  * Controller: Thêm phòng mới
  */
 export const addRoom = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { 
-            name, roomType, capacity, size, bedType, view, description, 
-            price, originalPrice, availableRooms, status, 
-            amenities, hotelId, rating, reviewCount 
-        } = req.body;
+        const { roomNumber, roomTypeId, status, hotelId } = req.body;
 
-        if (!name || !roomType || !size || !bedType || !price || !description) {
-            res.status(400).json({ success: false, message: "Thiếu thông tin bắt buộc." });
+        if (!roomNumber || !roomTypeId) {
+            res.status(400).json({ success: false, message: "Thiếu thông tin bắt buộc: Tên/Số phòng và Loại phòng." });
             return;
         }
 
-        // 1. Xử lý tải ảnh thông qua Service
-        const files = req.files as any;
-        const { thumbnailUrl, imagesUrls } = await handleRoomImageUpload(name, files);
-
-        if (!thumbnailUrl) {
-            res.status(400).json({ success: false, message: "Vui lòng cung cấp ảnh thumbnail (ảnh chính)." });
-            return;
-        }
-
-        // 2. Chuẩn hóa tiện nghi
-        const parsedAmenities = parseAmenitiesObject(amenities);
-
-        // 3. Tạo phòng mới
+        // Tạo phòng mới
         const newRoom = new roomModel({
-            name, roomType, bedType, view: view || "", description,
-            capacity: Number(capacity || 2),
-            size: Number(size),
-            price: Number(price),
-            originalPrice: originalPrice ? Number(originalPrice) : undefined,
-            availableRooms: availableRooms ? Number(availableRooms) : 0,
+            roomNumber,
+            roomTypeId,
             status: status || "available",
-            thumbnail: thumbnailUrl,
-            images: imagesUrls,
-            amenities: parsedAmenities,
-            hotelId: hotelId || undefined,
-            rating: rating ? Number(rating) : 0,
-            reviewCount: reviewCount ? Number(reviewCount) : 0
+            hotelId: hotelId || undefined
         });
 
         await newRoom.save();
+        
+        // Đồng bộ số lượng vào Loại phòng tương ứng
+        await syncRoomTypeInventory(roomTypeId);
+
         res.status(201).json({ success: true, message: "Thêm phòng thành công", data: newRoom });
 
     } catch (error) {
@@ -63,19 +44,16 @@ export const addRoom = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
- * Controller: Lấy toàn bộ danh sách phòng (Tính toán phòng trống thời gian thực)
+ * Controller: Lấy toàn bộ danh sách phòng (Dành cho Admin)
  */
 export const getAllRooms = async (req: Request, res: Response): Promise<void> => {
     try {
         const { hotelId } = req.query;
         const filter = hotelId ? { hotelId } : {};
-        
-        const roomsResult = await roomModel.find(filter).lean() as any[];
-        
-        // Gọi Service tính toán trạng thái phòng dựa theo ngày hôm nay
-        const rooms = await calculateRoomAvailability(roomsResult, new Date(), new Date(new Date().setDate(new Date().getDate() + 1)));
 
-        res.json({ success: true, data: rooms });
+        const roomsResult = await roomModel.find(filter).populate('roomTypeId').lean();
+
+        res.json({ success: true, data: roomsResult });
     } catch (error) {
         res.status(500).json({ success: false, message: (error as Error).message });
     }
@@ -86,30 +64,28 @@ export const getAllRooms = async (req: Request, res: Response): Promise<void> =>
  */
 export const updateRoom = async (req: Request, res: Response): Promise<void> => {
     try {
-        const updateData: Record<string, any> = { ...req.body };
-        const files = req.files as any;
+        const { roomNumber, roomTypeId, status, hotelId } = req.body;
+        const updateData: Record<string, any> = {};
 
-        // 1. Xử lý ảnh mới nếu có
-        const { thumbnailUrl, imagesUrls } = await handleRoomImageUpload(updateData.name || "update", files, true);
-        if (thumbnailUrl) updateData.thumbnail = thumbnailUrl;
-        if (imagesUrls.length > 0) updateData.images = imagesUrls;
-
-        // 2. Chuẩn hóa các trường số
-        const numFields = ['price', 'capacity', 'size', 'originalPrice', 'availableRooms', 'rating', 'reviewCount'];
-        numFields.forEach(field => {
-            if (updateData[field] !== undefined) updateData[field] = Number(updateData[field]);
-        });
-
-        // 3. Xử lý tiện nghi (amenities)
-        if (updateData.amenities) {
-            updateData.amenities = parseAmenitiesObject(updateData.amenities);
-        }
+        if (roomNumber) updateData.roomNumber = roomNumber;
+        if (roomTypeId) updateData.roomTypeId = roomTypeId;
+        if (status) updateData.status = status;
+        if (hotelId) updateData.hotelId = hotelId;
 
         const updatedRoom = await roomModel.findByIdAndUpdate(req.params.id, updateData, { returnDocument: 'after' });
 
         if (!updatedRoom) {
             res.status(404).json({ success: false, message: "Không tìm thấy phòng." });
             return;
+        }
+
+        // Đồng bộ số lượng (Trường hợp typeId thay đổi hoặc phòng thay đổi)
+        if (roomTypeId || updatedRoom.roomTypeId) {
+            await syncRoomTypeInventory(roomTypeId || updatedRoom.roomTypeId.toString());
+        }
+
+        if (updatedRoom) {
+            emitToAll('room_status_changed', { id: updatedRoom._id, status: updatedRoom.status, room: updatedRoom });
         }
         res.json({ success: true, message: "Cập nhật phòng thành công", data: updatedRoom });
     } catch (error) {
@@ -127,6 +103,12 @@ export const deleteRoom = async (req: Request, res: Response): Promise<void> => 
             res.status(404).json({ success: false, message: "Không tìm thấy phòng" });
             return;
         }
+
+        // Đồng bộ xóa số lượng về Loại phòng
+        if (deletedRoom.roomTypeId) {
+            await syncRoomTypeInventory(deletedRoom.roomTypeId.toString());
+        }
+
         res.json({ success: true, message: "Xóa phòng thành công" });
     } catch (error) {
         res.status(500).json({ success: false, message: (error as Error).message });
@@ -134,31 +116,31 @@ export const deleteRoom = async (req: Request, res: Response): Promise<void> => 
 };
 
 /**
- * Controller: Tìm kiếm và lọc phòng theo ngày (Tính toán phòng trống linh hoạt)
+ * Controller: Tìm kiếm và lọc loại phòng (Tính toán phòng trống theo kho)
  */
 export const searchRooms = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { query, bedType, type, capacity, minPrice, maxPrice, sort, wifi, airConditioner, breakfast, checkIn, checkOut, roomId } = req.query;
+        const { query, bedType, capacity, minPrice, maxPrice, sort, wifi, airConditioner, breakfast, checkIn, checkOut, roomId } = req.query;
 
-        const conditions: any[] = [];
+        const conditions: any[] = [{ isActive: true }];
         const searchQuery = query as string;
 
-        if (roomId) conditions.push({ _id: roomId });
+        if (roomId) conditions.push({ _id: roomId }); // Lấy chi tiết khi click vào 1 roomType
         if (searchQuery) {
-            conditions.push({ $or: [
-                { name: { $regex: searchQuery, $options: 'i' } },
-                { description: { $regex: searchQuery, $options: 'i' } },
-                { roomType: { $regex: searchQuery, $options: 'i' } }
-            ]});
+            conditions.push({
+                $or: [
+                    { name: { $regex: searchQuery, $options: 'i' } },
+                    { description: { $regex: searchQuery, $options: 'i' } }
+                ]
+            });
         }
         if (bedType) conditions.push({ bedType });
         if (capacity) conditions.push({ capacity: { $gte: Number(capacity) } });
-        if (type) conditions.push({ $or: [ { roomType: type }, { roomType: { $regex: `^${type}$`, $options: 'i' } }]});
         if (minPrice || maxPrice) {
             const priceFilter: any = {};
             if (minPrice) priceFilter.$gte = Number(minPrice);
             if (maxPrice) priceFilter.$lte = Number(maxPrice);
-            conditions.push({ price: priceFilter });
+            conditions.push({ basePrice: priceFilter });
         }
         if (wifi === 'true') conditions.push({ 'amenities.wifi': true });
         if (airConditioner === 'true') conditions.push({ 'amenities.airConditioner': true });
@@ -167,17 +149,21 @@ export const searchRooms = async (req: Request, res: Response): Promise<void> =>
         const filter = conditions.length > 0 ? { $and: conditions } : {};
 
         let sortOption: any = {};
-        if (sort === 'price_asc') sortOption = { price: 1 };
-        else if (sort === 'price_desc') sortOption = { price: -1 };
+        if (sort === 'price_asc') sortOption = { basePrice: 1 };
+        else if (sort === 'price_desc') sortOption = { basePrice: -1 };
         else if (sort === 'rating') sortOption = { rating: -1 };
         else sortOption = { createdAt: -1 };
 
-        let roomsResult = await roomModel.find(filter).sort(sortOption).lean() as any[];
+        const { default: roomTypeModel } = await import('../models/roomTypeModel.ts');
+        const roomTypesResult = await roomTypeModel.find(filter).sort(sortOption).lean() as any[];
 
-        // Gọi Service tính toán trạng thái phòng trống theo ngày cụ thể được khách hàng chọn
-        const rooms = await calculateRoomAvailability(roomsResult, checkIn as string, checkOut as string);
+        // Gọi Service tính toán trạng thái phòng trống theo ngày
+        let roomTypes = await calculateRoomAvailability(roomTypesResult, checkIn as string, checkOut as string);
 
-        res.json({ success: true, count: rooms.length, data: rooms });
+        // Lọc ẩn các loại phòng đã hết phòng trống
+        roomTypes = (roomTypes || []).filter((rt: any) => rt.availableRooms > 0);
+
+        res.json({ success: true, count: roomTypes?.length || 0, data: roomTypes || [] });
     } catch (error) {
         res.status(500).json({ success: false, message: (error as Error).message });
     }

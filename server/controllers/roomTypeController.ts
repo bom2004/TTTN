@@ -11,10 +11,10 @@ import {
 export const addRoomType = async (req: Request, res: Response): Promise<void> => {
     try {
         const data = req.body;
-        const file = req.file;
+        const files = req.files as any[];
 
         // Gọi Service để tạo loại phòng và xử lý ảnh
-        const newRoomType = await processSaveRoomType(undefined, data, file);
+        const newRoomType = await processSaveRoomType(undefined, data, files);
 
         res.status(201).json({ success: true, message: "Thêm loại phòng thành công", data: newRoomType });
     } catch (error) {
@@ -45,10 +45,10 @@ export const updateRoomType = async (req: Request, res: Response): Promise<void>
     try {
         const { id } = req.params;
         const data = req.body;
-        const file = req.file;
+        const files = req.files as any[];
 
         // Gọi Service để cập nhật dữ liệu và ảnh mới nếu có
-        const updated = await processSaveRoomType(id as any, data, file);
+        const updated = await processSaveRoomType(id as any, data, files);
 
         res.json({ success: true, message: "Cập nhật loại phòng thành công", data: updated });
     } catch (error) {

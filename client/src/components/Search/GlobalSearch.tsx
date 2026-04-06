@@ -1,51 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { Room, RoomType, IPromotion, ApiResponse } from '../../types';
+import { Room } from '../../types';
 import Viewdetails from '../booking/Viewdetails';
+import { useAppDispatch, useAppSelector } from '../../lib/redux/store';
+import { globalSearchThunk } from '../../lib/redux/reducers/search';
 
-
-interface SearchResult {
-    rooms: Room[];
-    roomTypes: RoomType[];
-    promotions: IPromotion[];
-}
 
 const GlobalSearch: React.FC = () => {
-    const backendUrl = "http://localhost:3000";
     const navigate = useNavigate();
+    const dispatch = useAppDispatch();
     const [searchParams] = useSearchParams();
     const query = searchParams.get('query') || '';
 
-    const [results, setResults] = useState<SearchResult | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
+    const { results, loading } = useAppSelector(state => state.search);
     const [activeTab, setActiveTab] = useState<'all' | 'rooms' | 'types' | 'promotions'>('all');
     const [showDetails, setShowDetails] = useState<boolean>(false);
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
 
     useEffect(() => {
-        const fetchResults = async () => {
-            setLoading(true);
-            try {
-                const response = await axios.get<ApiResponse<SearchResult>>(`${backendUrl}/api/search?query=${encodeURIComponent(query)}`);
-                if (response.data.success && response.data.data) {
-                    setResults(response.data.data);
-                }
-            } catch (error) {
-                console.error("Search error:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         if (query) {
-            fetchResults();
-        } else {
-            setResults({ rooms: [], roomTypes: [], promotions: [] });
-            setLoading(false);
+            dispatch(globalSearchThunk(query));
         }
-    }, [query]);
+    }, [query, dispatch]);
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('vi-VN').format(val);
 
@@ -146,7 +123,7 @@ const GlobalSearch: React.FC = () => {
                                                     <div>
                                                         <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">Giá từ</span>
                                                         <span className="text-xl font-black text-[#1a1a1a]">{formatCurrency(room.price)}₫</span>
-                                                        <span className="text-[10px] font-bold text-gray-400">/đêm</span>
+                                                        <span className="text-[10px] font-bold text-gray-400">/ngày</span>
                                                     </div>
                                                     <div
                                                         className="w-10 h-10 bg-[#006ce4]/10 rounded-xl flex items-center justify-center text-[#006ce4] group-hover:bg-[#006ce4] group-hover:text-white transition-all underline decoration-transparent"

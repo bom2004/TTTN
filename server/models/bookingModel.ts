@@ -1,23 +1,28 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 
 export interface IBooking extends Document {
-    userId: mongoose.Types.ObjectId;
-    // Lưu thông tin khách hàng tại thời điểm đặt (đề phòng user thay đổi thông tin sau này)
+    userId?: mongoose.Types.ObjectId;
     customerInfo: {
         name: string;
         email: string;
         phone: string;
     };
+    // Thay đổi từ đặt 1 phòng sang đặt Loại phòng + Số lượng
+    roomTypeId: mongoose.Types.ObjectId;
+    roomQuantity: number;
+    assignedRooms: mongoose.Types.ObjectId[]; // Gán khi check-in
+
     checkInDate: Date;
     checkOutDate: Date;
-    totalAmount: number; // Tổng tiền trước giảm giá
-    discountAmount: number; // Số tiền được giảm
-    finalAmount: number; // Số tiền cuối cùng phải thanh toán
-    promotionCode?: string; // Mã khuyến mãi áp dụng (Yêu cầu của bạn)
+    totalAmount: number;
+    discountAmount: number;
+    finalAmount: number;
+    promotionCode?: string;
     status: 'pending' | 'confirmed' | 'checked_in' | 'checked_out' | 'completed' | 'cancelled';
     paymentStatus: 'unpaid' | 'paid' | 'deposited';
     paymentMethod: 'vnpay' | 'cash' | 'balance' | 'wallet';
     paidAmount?: number;
+    vnp_TxnRef?: string; // Hỗ trợ VNPay trực tiếp
     checkInTime?: string;
     specialRequests?: string;
     createdAt: Date;
@@ -29,13 +34,28 @@ const bookingSchema = new Schema<IBooking>(
         userId: { 
             type: Schema.Types.ObjectId, 
             ref: 'user', 
-            required: true 
+            required: false 
         },
         customerInfo: {
             name: { type: String, required: true },
             email: { type: String, required: true },
             phone: { type: String, required: true },
         },
+        roomTypeId: {
+            type: Schema.Types.ObjectId,
+            ref: 'roomType',
+            required: true
+        },
+        roomQuantity: {
+            type: Number,
+            required: true,
+            min: 1,
+            default: 1
+        },
+        assignedRooms: [{
+            type: Schema.Types.ObjectId,
+            ref: 'room'
+        }],
         checkInDate: { 
             type: Date, 
             required: true 
@@ -78,6 +98,10 @@ const bookingSchema = new Schema<IBooking>(
         paidAmount: {
             type: Number,
             default: 0
+        },
+        vnp_TxnRef: {
+            type: String,
+            default: ""
         },
         checkInTime: {
             type: String,
