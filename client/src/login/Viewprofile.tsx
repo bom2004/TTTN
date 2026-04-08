@@ -26,9 +26,9 @@ const ViewProfile: React.FC = () => {
     const [preview, setPreview] = useState<string | null>(null);
 
     const getMembershipInfo = (total: number) => {
-        if (!total || total < 10000000) return 'Silver';
-        if (total < 50000000) return 'Gold';
-        if (total < 150000000) return 'Diamond';
+        if (!total || total < 2000000) return 'Silver';
+        if (total < 7000000) return 'Gold';
+        if (total < 12000000) return 'Diamond';
         return 'Platinum';
     };
 
@@ -158,26 +158,63 @@ const ViewProfile: React.FC = () => {
                             <h1 className="text-xl font-bold text-slate-800 mb-1">{userData.full_name}</h1>
                             <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider">
                                 {userData.role === 'hotelOwner' ? 'Chủ khách sạn' :
-                                    `Thành viên VIP Hạng ${getMembershipInfo(userData.totalRecharged || 0)}`}
+                                    `Thành viên VIP Hạng ${getMembershipInfo(userData.totalSpent || 0)}`}
                             </p>
+
+                            {userData.role !== 'hotelOwner' && (
+                                <div className="mt-4 px-2">
+                                    {(() => {
+                                        const total = userData.totalSpent || 0;
+                                        let nextLevel = "";
+                                        let min = 0;
+                                        let max = 0;
+                                        let color = "";
+
+                                        if (total < 2000000) {
+                                            nextLevel = "Vàng"; min = 0; max = 2000000; color = "from-slate-400 to-slate-500";
+                                        } else if (total < 7000000) {
+                                            nextLevel = "Kim cương"; min = 2000000; max = 7000000; color = "from-amber-400 to-amber-600";
+                                        } else if (total < 12000000) {
+                                            nextLevel = "Bạch kim"; min = 7000000; max = 12000000; color = "from-blue-400 to-indigo-600";
+                                        } else {
+                                            return (
+                                                <p className="text-[10px] font-black text-red-600 uppercase tracking-tighter animate-pulse">
+                                                    Đã đạt cấp độ cao nhất 🏆
+                                                </p>
+                                            );
+                                        }
+
+                                        const progress = Math.min(100, Math.max(0, ((total - min) / (max - min)) * 100));
+                                        const remaining = max - total;
+
+                                        return (
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between items-end">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Lên {nextLevel} còn</span>
+                                                    <span className="text-[10px] font-black text-blue-600 italic">Còn {new Intl.NumberFormat('vi-VN').format(remaining)}₫ nữa</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/50 p-[1px]">
+                                                    <div
+                                                        className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-1000 shadow-[0_0_8px_rgba(0,0,0,0.1)]`}
+                                                        style={{ width: `${progress}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            )}
 
                             <div className="mt-6 flex flex-col gap-3">
                                 <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 text-left">
-                                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-1">Ví tiền</p>
+                                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-1">Tổng chi tiêu</p>
                                     <p className="text-2xl font-bold text-transparent bg-gradient-to-r from-blue-800 to-cyan-700 bg-clip-text">
-                                        {new Intl.NumberFormat('vi-VN').format(userData.balance || 0)} ₫
+                                        {new Intl.NumberFormat('vi-VN').format(userData.totalSpent || 0)} ₫
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => navigate('/topup')}
-                                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"
-                                >
-                                    <span className="material-symbols-outlined text-lg">add_card</span>
-                                    Nạp tiền ngay
-                                </button>
-                                <button
                                     onClick={() => navigate('/my-bookings')}
-                                    className="w-full py-3 bg-white text-blue-600 border-2 border-blue-200 font-bold text-sm rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center justify-center gap-2"
+                                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"
                                 >
                                     <span className="material-symbols-outlined text-lg">luggage</span>
                                     Đặt chỗ của tôi

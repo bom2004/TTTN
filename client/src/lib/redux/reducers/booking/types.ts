@@ -41,7 +41,7 @@ export interface Booking {
     };
     status: 'pending' | 'confirmed' | 'checked_in' | 'checked_out' | 'completed' | 'cancelled';
     paymentStatus: 'unpaid' | 'paid' | 'deposited';
-    paymentMethod: 'vnpay' | 'cash' | 'balance' | 'wallet';
+    paymentMethod: 'vnpay' | 'cash';
     paidAmount?: number;
     checkInTime: string;
     specialRequests: string;

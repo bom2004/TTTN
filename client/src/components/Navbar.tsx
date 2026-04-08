@@ -30,14 +30,14 @@ const Navbar: React.FC = () => {
     }
 
     // xử lý hạng thành viên
-    const getMembershipInfo = (totalRecharged: number) => {
-        if (!totalRecharged || totalRecharged < 10000000) return { label: 'Silver', color: 'text-gray-400', bg: 'bg-gray-100', icon: 'stars' };
-        if (totalRecharged < 50000000) return { label: 'Gold', color: 'text-yellow-500', bg: 'bg-yellow-50', icon: 'workspace_premium' };
-        if (totalRecharged < 150000000) return { label: 'Diamond', color: 'text-blue-500', bg: 'bg-blue-50', icon: 'diamond' };
+    const getMembershipInfo = (totalSpent: number) => {
+        if (!totalSpent || totalSpent < 2000000) return { label: 'Silver', color: 'text-gray-400', bg: 'bg-gray-100', icon: 'stars' };
+        if (totalSpent < 7000000) return { label: 'Gold', color: 'text-yellow-500', bg: 'bg-yellow-50', icon: 'workspace_premium' };
+        if (totalSpent < 12000000) return { label: 'Diamond', color: 'text-blue-500', bg: 'bg-blue-50', icon: 'diamond' };
         return { label: 'Platinum', color: 'text-purple-500', bg: 'bg-purple-50', icon: 'crown' };
     };
 
-    const membership = userData ? getMembershipInfo(userData.totalRecharged || 0) : { label: 'Member', color: 'text-gray-300', bg: 'bg-transparent', icon: 'person' };
+    const membership = userData ? getMembershipInfo(userData.totalSpent || 0) : { label: 'Member', color: 'text-gray-300', bg: 'bg-transparent', icon: 'person' };
 
     useEffect(() => {
         const handleScroll = (): void => {
@@ -97,24 +97,6 @@ const Navbar: React.FC = () => {
                             }}
                         />
                     </div>
-
-                    {/* Balance & Top Up */}
-                    {token && userData && (
-                        <div className="hidden md:flex items-center gap-3 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/10 transition-all cursor-pointer group">
-                            <div className="flex flex-col items-end">
-                                <span className="text-[9px] font-black text-white/40 uppercase tracking-widest leading-none mb-1">Ví của bạn</span>
-                                <span className="font-black text-sm text-[#febb02]">
-                                    {new Intl.NumberFormat('vi-VN').format(userData.balance || 0)} ₫
-                                </span>
-                            </div>
-                            <button
-                                onClick={() => navigate('/topup')}
-                                className="w-8 h-8 bg-[#006ce4] rounded-lg hover:bg-[#0057b8] transition-all flex items-center justify-center shadow-lg shadow-blue-900/40 group-hover:scale-110 active:scale-95"
-                            >
-                                <span className="material-symbols-outlined text-lg text-white font-bold">add</span>
-                            </button>
-                        </div>
-                    )}
 
                     {/* Auth & Profile */}
                     {token && userData ? (

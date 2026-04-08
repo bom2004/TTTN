@@ -14,46 +14,47 @@ const Promotions: React.FC = () => {
     const userData = useAppSelector(selectAuthUser);
     const token = useAppSelector(selectAuthToken);
 
-    const getMembershipLevel = (totalRecharged: number): number => {
-        if (!totalRecharged || totalRecharged < 10000000) return 0;
-        if (totalRecharged < 50000000) return 1;
-        if (totalRecharged < 150000000) return 2;
+    const getMembershipLevel = (totalSpent: number): number => {
+        if (!totalSpent || totalSpent < 2000000) return 0;
+        if (totalSpent < 7000000) return 1;
+        if (totalSpent < 12000000) return 2;
         return 3;
     };
 
     const getMembershipName = (level: number) => ['Silver', 'Gold', 'Diamond', 'Platinum'][level] || 'Silver';
 
-    const userMembershipLevel = userData ? getMembershipLevel(userData.totalRecharged || 0) : 0;
+    const userMembershipLevel = userData ? getMembershipLevel(userData.totalSpent || 0) : 0;
 
-    const activePromotions = promotionsFromStore.filter(p =>
-        p.status === 'active' &&
-        new Date(p.startDate) <= new Date() &&
-        new Date(p.endDate) >= new Date()
-    );
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const renderablePromotions = token ? activePromotions.filter(promo => {
-        const hasUsed = promo.usedBy && userData && (promo.usedBy as any).includes(userData.id || userData._id || "");
-        const isLimitReached = promo.usageLimit > 0 && promo.usedCount >= promo.usageLimit;
-        return !hasUsed && !isLimitReached;
-    }) : [];
+    const activePromotions = promotionsFromStore.filter(p => {
+        const start = new Date(p.startDate);
+        const end = new Date(p.endDate);
+        const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+
+        return p.status === 'active' && startDate <= today && endDate >= today;
+    });
+
+    const renderablePromotions = activePromotions.filter(promo => {
+        // Nếu đã đăng nhập, lọc bỏ các mã đã dùng hoặc hết lượt
+        if (token && userData) {
+            const hasUsed = (promo.usedBy as any)?.includes(userData.id || userData._id || "");
+            const isLimitReached = promo.usageLimit > 0 && promo.usedCount >= promo.usageLimit;
+            if (hasUsed || isLimitReached) return false;
+        }
+        
+        // Nếu chưa đăng nhập, chỉ hiện các mã phổ thông (Genius level = 0)
+        // Nếu đã đăng nhập, hiện tất cả (vì đã lọc used/limit ở trên)
+        return token ? true : promo.minGeniusLevel === 0;
+    });
 
     useEffect(() => {
         dispatch(fetchAllPromotionsThunk());
     }, [dispatch]);
 
     const renderPromotionsContent = () => {
-        if (!token) {
-            return (
-                <div className="text-center py-10 bg-white rounded-xl shadow-sm border border-slate-200">
-                    <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">lock</span>
-                    <p className="text-slate-600 font-medium mb-4">Vui lòng đăng nhập để xem và nhận các mã khuyến mãi dành riêng cho bạn.</p>
-                    <button className="bg-[#ec5b13] text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-[#ec5b13]/90 transform transition hover:scale-105 active:scale-95" onClick={() => navigate('/login')}>
-                        Đăng nhập ngay
-                    </button>
-                </div>
-            );
-        }
-
         if (renderablePromotions.length === 0) {
             return (
                 <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-slate-200 animate-in fade-in zoom-in duration-500">
@@ -110,6 +111,12 @@ const Promotions: React.FC = () => {
                                         <span className="material-symbols-outlined text-sm">shopping_cart_checkout</span>
                                         <span>Đơn tối thiểu: {new Intl.NumberFormat('vi-VN').format(promo.minOrderValue)}đ</span>
                                     </div>
+                                    {promo.maxDiscountAmount > 0 && (
+                                        <div className="flex items-center gap-2 text-xs text-amber-600 font-bold">
+                                            <span className="material-symbols-outlined text-sm">payments</span>
+                                            <span>Giảm tối đa: {new Intl.NumberFormat('vi-VN').format(promo.maxDiscountAmount)}đ</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-2 text-xs text-rose-500 font-bold mb-4">
                                         <span className="material-symbols-outlined text-sm">calendar_today</span>
                                         <span>Hạn dùng: {new Date(promo.endDate).toLocaleDateString('vi-VN')}</span>

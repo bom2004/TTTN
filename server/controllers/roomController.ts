@@ -160,8 +160,11 @@ export const searchRooms = async (req: Request, res: Response): Promise<void> =>
         // Gọi Service tính toán trạng thái phòng trống theo ngày
         let roomTypes = await calculateRoomAvailability(roomTypesResult, checkIn as string, checkOut as string);
 
-        // Lọc ẩn các loại phòng đã hết phòng trống
-        roomTypes = (roomTypes || []).filter((rt: any) => rt.availableRooms > 0);
+        // Chỉ ẩn loại phòng khi user đã chọn ngày cụ thể VÀ phòng thực sự kín trong khoảng đó
+        // Nếu không có ngày lọc → hiển thị tất cả (không ẩn loại phòng nào)
+        if (checkIn && checkOut) {
+            roomTypes = (roomTypes || []).filter((rt: any) => rt.availableRooms > 0);
+        }
 
         res.json({ success: true, count: roomTypes?.length || 0, data: roomTypes || [] });
     } catch (error) {

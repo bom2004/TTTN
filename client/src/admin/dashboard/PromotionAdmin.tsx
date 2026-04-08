@@ -25,6 +25,7 @@ interface PromotionForm {
     minOrderValue: string;
     usageLimit: string;
     minGeniusLevel: string;
+    maxDiscountAmount: string; // New field
     roomTypes: string[];
 }
 
@@ -51,6 +52,7 @@ const PromotionAdmin: React.FC = () => {
         title: '', description: '', discountPercent: '', code: '',
         startDate: '', endDate: '', minOrderValue: '0', usageLimit: '0',
         minGeniusLevel: '0',
+        maxDiscountAmount: '0',
         roomTypes: []
     };
     const [formData, setFormData] = useState<PromotionForm>(emptyForm);
@@ -82,6 +84,7 @@ const PromotionAdmin: React.FC = () => {
         payload.append('startDate', formData.startDate);
         payload.append('endDate', formData.endDate);
         payload.append('minOrderValue', formData.minOrderValue);
+        payload.append('maxDiscountAmount', formData.maxDiscountAmount);
         payload.append('usageLimit', formData.usageLimit);
         payload.append('minGeniusLevel', formData.minGeniusLevel);
         payload.append('roomTypes', JSON.stringify(formData.roomTypes));
@@ -135,6 +138,7 @@ const PromotionAdmin: React.FC = () => {
             minOrderValue: promo.minOrderValue.toString(),
             usageLimit: promo.usageLimit.toString(),
             minGeniusLevel: (promo.minGeniusLevel || 0).toString(),
+            maxDiscountAmount: (promo.maxDiscountAmount || 0).toString(),
             roomTypes: promo.roomTypes ? promo.roomTypes.map((rt: any) => typeof rt === 'string' ? rt : rt._id) : []
         });
         setSelectedPromo(promo);
@@ -241,16 +245,33 @@ const PromotionAdmin: React.FC = () => {
                                         return (
                                             <tr key={promo._id} className="hover:bg-gray-50 transition">
                                                 <td className="px-4 py-3">
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="font-mono text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                                                                {promo.code}
-                                                            </span>
+                                                    <div className="flex items-center gap-3">
+                                                        {promo.image ? (
+                                                            <img src={promo.image} alt={promo.title} className="w-12 h-12 rounded object-cover border border-gray-100" />
+                                                        ) : (
+                                                            <div className="w-12 h-12 rounded bg-gray-50 flex items-center justify-center border border-gray-100">
+                                                                <span className="material-symbols-outlined text-gray-300 text-lg">image</span>
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="font-mono text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                                                                    {promo.code}
+                                                                </span>
+                                                            </div>
+                                                            <p className="font-medium text-gray-900 leading-tight">{promo.title}</p>
+                                                            {promo.description && <p className="text-[10px] text-gray-400 line-clamp-1 max-w-[200px] mb-0.5">{promo.description}</p>}
+                                                            <div className="flex flex-wrap gap-x-3">
+                                                                <p className="text-[10px] text-gray-500">
+                                                                    Min: {new Intl.NumberFormat('vi-VN').format(promo.minOrderValue)}₫
+                                                                </p>
+                                                                {promo.maxDiscountAmount > 0 && (
+                                                                    <p className="text-[10px] text-amber-600 font-bold">
+                                                                        Max: {new Intl.NumberFormat('vi-VN').format(promo.maxDiscountAmount)}₫
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        <p className="font-medium text-gray-900">{promo.title}</p>
-                                                        <p className="text-xs text-gray-400 mt-0.5">
-                                                            Đơn tối thiểu: {new Intl.NumberFormat('vi-VN').format(promo.minOrderValue)}₫
-                                                        </p>
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
@@ -448,6 +469,18 @@ const PromotionAdmin: React.FC = () => {
                                         className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
                                         placeholder="0"
                                         value={formData.minOrderValue}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Số tiền giảm tối đa (VNĐ)</label>
+                                    <input
+                                        name="maxDiscountAmount"
+                                        type="number"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        placeholder="0 (không giới hạn)"
+                                        value={formData.maxDiscountAmount}
                                         onChange={handleChange}
                                     />
                                 </div>

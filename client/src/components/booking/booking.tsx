@@ -91,16 +91,16 @@ const Booking: React.FC = () => {
         '23:00 - 00:00'
     ];
 
-    const getMembershipLevel = (totalRecharged: number): number => {
-        if (!totalRecharged || totalRecharged < 10000000) return 0; // Silver
-        if (totalRecharged < 50000000) return 1; // Gold
-        if (totalRecharged < 150000000) return 2; // Diamond
+    const getMembershipLevel = (totalSpent: number): number => {
+        if (!totalSpent || totalSpent < 2000000) return 0; // Silver
+        if (totalSpent < 7000000) return 1; // Gold
+        if (totalSpent < 12000000) return 2; // Diamond
         return 3; // Platinum
     };
 
     const getMembershipName = (level: number) => ['Silver', 'Gold', 'Diamond', 'Platinum'][level] || 'Silver';
 
-    const userMembershipLevel = userData ? getMembershipLevel(userData.totalRecharged || 0) : 0;
+    const userMembershipLevel = userData ? getMembershipLevel(userData.totalSpent || 0) : 0;
 
     const totalAmount = ((room?.price || room?.basePrice) || 0) * numNights * roomQuantity;
     const finalAmount = totalAmount - discountInfo.amount;
@@ -192,9 +192,20 @@ const Booking: React.FC = () => {
                 return;
             }
 
-            const amount = (totalAmount * promo.discountPercent) / 100;
+            let amount = (totalAmount * promo.discountPercent) / 100;
+            
+            // Áp dụng giới hạn tiền giảm tối đa
+            if (promo.maxDiscountAmount > 0 && amount > promo.maxDiscountAmount) {
+                amount = promo.maxDiscountAmount;
+            }
+
             setDiscountInfo({ percent: promo.discountPercent, amount });
-            toast.success(`Đã áp dụng mã giảm giá ${promo.discountPercent}%`);
+            
+            if (promo.maxDiscountAmount > 0 && (totalAmount * promo.discountPercent) / 100 > promo.maxDiscountAmount) {
+                toast.success(`Đã áp dụng mã giảm giá. Đạt mức giảm tối đa ${new Intl.NumberFormat('vi-VN').format(promo.maxDiscountAmount)}₫`);
+            } else {
+                toast.success(`Đã áp dụng mã giảm giá ${promo.discountPercent}%`);
+            }
         } catch (error) {
             setDiscountInfo({ percent: 0, amount: 0 });
             toast.error("Lỗi khi kiểm tra mã giảm giá");
@@ -551,7 +562,7 @@ const Booking: React.FC = () => {
                                 </li>
                                 <li className="flex gap-2">
                                     <span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
-                                    <span>Có thể cọc hoặc thanh toán toàn bộ.</span>
+                                    <span>Yêu cầu thanh toán cọc 30% để giữ chỗ.</span>
                                 </li>
                             </ul>
                         </div>

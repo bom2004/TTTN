@@ -16,6 +16,10 @@ export const isPromotionTimeValid = (startDate: Date, endDate: Date): boolean =>
 /**
  * Hàm hỗ trợ: Tính số tiền giảm giá dựa trên %
  */
-export const calculateDiscount = (orderValue: number, discountPercent: number): number => {
-    return (orderValue * discountPercent) / 100;
+export const calculateDiscount = (orderValue: number, discountPercent: number, maxAmount: number = 0): number => {
+    let discount = (orderValue * discountPercent) / 100;
+    if (maxAmount > 0 && discount > maxAmount) {
+        discount = maxAmount;
+    }
+    return discount;
 };

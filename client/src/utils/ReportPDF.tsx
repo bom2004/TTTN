@@ -1,18 +1,30 @@
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
+// Register font for Vietnamese characters
+Font.register({
+  family: 'Roboto',
+  fonts: [
+    { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-light-webfont.ttf', fontWeight: 300 },
+    { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-regular-webfont.ttf', fontWeight: 400 },
+    { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-medium-webfont.ttf', fontWeight: 500 },
+    { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-bold-webfont.ttf', fontWeight: 700 },
+  ]
+});
+
 // Create styles
 const styles = StyleSheet.create({
   page: {
     padding: 30,
     fontSize: 12,
-    fontFamily: 'Helvetica',
+    fontFamily: 'Roboto',
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     textAlign: 'center',
     marginBottom: 30,
-    fontWeight: 'bold',
+    fontWeight: 700,
     textTransform: 'uppercase',
+    color: '#1F2937',
   },
   section: {
     margin: 10,
@@ -57,7 +69,7 @@ const styles = StyleSheet.create({
   tableCellHeader: {
     margin: 5,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: 700,
   },
   tableCell: {
     margin: 5,
@@ -69,7 +81,7 @@ const styles = StyleSheet.create({
   },
   total: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 700,
     marginTop: 20,
   }
 });

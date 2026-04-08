@@ -1,12 +1,11 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { UserState, User, AdminRechargeResult } from './types';
+import type { UserState, User } from './types';
 import {
     fetchAllUsersThunk,
     createUserThunk,
     updateUserThunk,
     deleteUserThunk,
     adminUpdatePasswordThunk,
-    adminRechargeThunk,
 } from './thunks';
 
 const initialState: UserState = {
@@ -38,6 +37,13 @@ const userSlice = createSlice({
         },
         removeOnlineUser(state, action: PayloadAction<string>) {
             state.onlineUserIds = state.onlineUserIds.filter(id => id !== action.payload);
+        },
+        updateUserSocket(state, action: PayloadAction<User>) {
+            const updated = action.payload;
+            const idx = state.users.findIndex((u) => (u._id || u.id) === (updated._id || updated.id));
+            if (idx !== -1) {
+                state.users[idx] = { ...state.users[idx], ...updated };
+            }
         },
     },
     extraReducers: (builder) => {
@@ -104,26 +110,8 @@ const userSlice = createSlice({
                 state.error = action.payload as string;
             });
 
-        // Admin Recharge
-        builder
-            .addCase(adminRechargeThunk.pending, (state) => { state.saving = true; })
-            .addCase(adminRechargeThunk.fulfilled, (state, action: PayloadAction<AdminRechargeResult>) => {
-                state.saving = false;
-                const { userId, data } = action.payload;
-                const idx = state.users.findIndex((u) => (u._id || u.id) === userId);
-                if (idx !== -1) {
-                    state.users[idx] = { ...state.users[idx], ...data };
-                }
-                if ((state.selectedUser?._id || state.selectedUser?.id) === userId) {
-                    state.selectedUser = { ...state.selectedUser, ...data } as User;
-                }
-            })
-            .addCase(adminRechargeThunk.rejected, (state, action) => {
-                state.saving = false;
-                state.error = action.payload as string;
-            });
     },
 });
 
-export const { setSelectedUser, clearUserError, setOnlineUsers, addOnlineUser, removeOnlineUser } = userSlice.actions;
+export const { setSelectedUser, clearUserError, setOnlineUsers, addOnlineUser, removeOnlineUser, updateUserSocket } = userSlice.actions;
 export default userSlice.reducer;

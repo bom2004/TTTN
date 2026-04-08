@@ -29,7 +29,7 @@ const CommentAdmin = lazy(() => import("./admin/dashboard/commentadmin"));
 const HomeStaff = lazy(() => import("./Staff/components/HomeStaff"));
 const RoomStaff = lazy(() => import("./Staff/dashboard/RoomStaff"));
 const RoomTypeStaff = lazy(() => import("./Staff/dashboard/RoomTypeStaff"));
-const BookingStaff = lazy(() => import("./Staff/dashboard/BookingStaff"));
+const BookingStaff = lazy(() => import("./Staff/dashboard/booking/BookingStaff"));
 const UserStaff = lazy(() => import("./Staff/dashboard/UserStaff"));
 const StaffManager = lazy(() => import("./Staff/dashboard/staff"));
 

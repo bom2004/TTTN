@@ -6,8 +6,7 @@ import {
     adminCreateUser, 
     adminUpdateUser, 
     deleteUser, 
-    getUser,
-    adminRecharge
+    getUser
 } from "../controllers/userController.ts";
 import { updateProfile } from "../controllers/updateUserController.ts";
 import { uploadImage } from "../middlewares/multer.ts";
@@ -22,6 +21,5 @@ userRouter.post("/admin-update-password", adminUpdatePassword);
 userRouter.post("/admin-create-user", uploadImage.single("avatar"), adminCreateUser);
 userRouter.post("/admin-update-user", uploadImage.single("avatar"), adminUpdateUser);
 userRouter.post("/delete-user", deleteUser);
-userRouter.post("/admin-recharge", adminRecharge);
 
 export default userRouter;

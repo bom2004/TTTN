@@ -82,8 +82,8 @@ const updateProfile = async (req: Request, res: Response): Promise<void> => {
                 phone: user.phone,
                 role: user.role,
                 avatar: user.avatar,
-                balance: user.balance,
-                totalRecharged: user.totalRecharged
+                totalSpent: user.totalSpent || 0,
+                membershipLevel: user.membershipLevel || 'silver'
             }
 
         });

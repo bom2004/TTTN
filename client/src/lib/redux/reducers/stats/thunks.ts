@@ -6,9 +6,13 @@ const baseUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
 export const fetchAdminStatsThunk = createAsyncThunk(
     'stats/fetchAdminStats',
-    async (period: string = 'month', { rejectWithValue }) => {
+    async ({ period = 'month', month, year }: { period?: string, month?: number, year?: number }, { rejectWithValue }) => {
         try {
-            const response = await axios.get(`${baseUrl}/api/stats/admin-stats?period=${period}`);
+            let url = `${baseUrl}/api/stats/admin-stats?period=${period}`;
+            if (month) url += `&month=${month}`;
+            if (year) url += `&year=${year}`;
+            
+            const response = await axios.get(url);
             if (response.data.success) {
                 return response.data.data as StatsData;
             }

@@ -8,8 +8,8 @@ export interface AuthUser {
     phone?: string;
     role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
     avatar: string;
-    balance: number;
-    totalRecharged: number;
+    totalSpent: number;
+    membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
     token?: string;
 }
 

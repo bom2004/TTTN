@@ -108,12 +108,12 @@ export const validatePromoCode = async (
         const user = await userModel.findById(userId);
         if (!user) throw new Error("Thông tin người dùng không tìm thấy.");
 
-        const userLevel = calculateGeniusLevel(user.totalRecharged || 0);
+        const userLevel = calculateGeniusLevel(user.totalSpent || 0);
         if (userLevel < promo.minGeniusLevel) {
             const levels = ['Silver', 'Gold', 'Diamond', 'Platinum'];
             const requireLevelName = levels[promo.minGeniusLevel] || 'Platinum';
             const currentLevelName = levels[userLevel] || 'Silver';
-            throw new Error(`Mã này ưu đãi độc quyền dành cho hạng ${requireLevelName} trở lên. Bạn hiện đang ở hạng ${currentLevelName}. Hãy nạp thêm để thăng hạng!`);
+            throw new Error(`Mã này ưu đãi độc quyền dành cho hạng ${requireLevelName} trở lên. Bạn hiện đang ở hạng ${currentLevelName}. Hãy đặt phòng nhiều hơn để thăng hạng!`);
         }
     }
 

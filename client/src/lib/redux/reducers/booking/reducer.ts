@@ -8,6 +8,8 @@ import {
     deleteBookingThunk,
     cancelMyBookingThunk,
     createBookingThunk,
+    adminUpdateBookingThunk,
+    addExtraPaymentThunk,
 } from './thunks';
 
 const initialState: BookingState = {
@@ -150,6 +152,44 @@ const bookingSlice = createSlice({
                 }
             })
             .addCase(createBookingThunk.rejected, (state, action) => {
+                state.updating = false;
+                state.error = action.payload as string;
+            });
+
+        // Admin Update
+        builder
+            .addCase(adminUpdateBookingThunk.pending, (state) => { state.updating = true; })
+            .addCase(adminUpdateBookingThunk.fulfilled, (state, action) => {
+                state.updating = false;
+                const updated = action.payload;
+                const idx = state.bookings.findIndex((b) => b._id === updated._id);
+                if (idx !== -1) {
+                    state.bookings[idx] = { ...state.bookings[idx], ...updated };
+                }
+                if (state.selectedBooking && state.selectedBooking._id === updated._id) {
+                    state.selectedBooking = { ...state.selectedBooking, ...updated };
+                }
+            })
+            .addCase(adminUpdateBookingThunk.rejected, (state, action) => {
+                state.updating = false;
+                state.error = action.payload as string;
+            });
+
+        // Add payment
+        builder
+            .addCase(addExtraPaymentThunk.pending, (state) => { state.updating = true; })
+            .addCase(addExtraPaymentThunk.fulfilled, (state, action) => {
+                state.updating = false;
+                const updated = action.payload;
+                const idx = state.bookings.findIndex((b) => b._id === updated._id);
+                if (idx !== -1) {
+                    state.bookings[idx] = { ...state.bookings[idx], ...updated };
+                }
+                if (state.selectedBooking && state.selectedBooking._id === updated._id) {
+                    state.selectedBooking = { ...state.selectedBooking, ...updated };
+                }
+            })
+            .addCase(addExtraPaymentThunk.rejected, (state, action) => {
                 state.updating = false;
                 state.error = action.payload as string;
             });

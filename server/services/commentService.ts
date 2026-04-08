@@ -10,11 +10,11 @@ import { calculateNewAverageRating } from "../utils/commentUtils.ts";
 export const saveComment = async (commentData: any) => {
     const { userId, roomTypeId, bookingId, rating, comment, images } = commentData;
 
-    // 1. Kiểm tra đơn đặt phòng (phải là completed mới cho đánh giá)
+    // 1. Kiểm tra đơn đặt phòng (phải là checked_out hoặc completed mới cho đánh giá)
     const booking = await bookingModel.findOne({ 
         _id: bookingId, 
         userId, 
-        status: 'completed' 
+        status: { $in: ['checked_out', 'completed'] } 
     });
 
     if (!booking) {

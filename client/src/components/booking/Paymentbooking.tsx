@@ -127,31 +127,20 @@ const PaymentBooking: React.FC = () => {
                                 Chọn phương thức thanh toán
                             </h3>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4">
                                 <button
                                     onClick={() => handlePayment('deposit')}
-                                    className="p-6 border-2 border-slate-100 rounded-2xl flex flex-col items-center gap-3 hover:border-[#003580] hover:bg-blue-50/50 transition-all group"
+                                    className="p-8 border-2 border-emerald-500 bg-emerald-50/30 rounded-2xl flex items-center gap-6 hover:bg-emerald-50 transition-all group shadow-lg shadow-emerald-100"
                                 >
-                                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-[#003580] group-hover:bg-[#003580] group-hover:text-white transition-all">
-                                        <span className="material-symbols-outlined">payments</span>
+                                    <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center text-white shrink-0">
+                                        <span className="material-symbols-outlined text-3xl">savings</span>
                                     </div>
-                                    <div className="text-center">
-                                        <p className="font-black text-slate-900">Đặt cọc trước (30%)</p>
-                                        <p className="text-sm text-slate-500 font-medium">{new Intl.NumberFormat('vi-VN').format(finalAmount * 0.3)}₫</p>
+                                    <div className="text-left flex-1">
+                                        <p className="font-black text-emerald-900 text-lg">Tiến hành đặt cọc (30%)</p>
+                                        <p className="text-sm font-bold text-emerald-600">Số tiền: {new Intl.NumberFormat('vi-VN').format(finalAmount * 0.3)}₫</p>
+                                        <p className="text-xs text-emerald-500 mt-1 italic font-medium italic">* Theo quy định mới: Khách hàng chỉ cần thanh toán cọc để giữ chỗ.</p>
                                     </div>
-                                </button>
-
-                                <button
-                                    onClick={() => handlePayment('full')}
-                                    className="p-6 border-2 border-[#003580] bg-blue-50/30 rounded-2xl flex flex-col items-center gap-3 hover:bg-blue-50 transition-all group"
-                                >
-                                    <div className="w-12 h-12 bg-[#003580] rounded-full flex items-center justify-center text-white">
-                                        <span className="material-symbols-outlined">check_circle</span>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="font-black text-slate-900">Thanh toán toàn bộ</p>
-                                        <p className="text-sm text-[#ec5b13] font-black">{new Intl.NumberFormat('vi-VN').format(finalAmount)}₫</p>
-                                    </div>
+                                    <span className="material-symbols-outlined text-emerald-500 group-hover:translate-x-2 transition-transform">arrow_forward</span>
                                 </button>
                             </div>
 

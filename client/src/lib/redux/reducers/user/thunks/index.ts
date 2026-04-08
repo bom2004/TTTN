@@ -84,18 +84,4 @@ export const adminUpdatePasswordThunk = createAsyncThunk(
         }
 });
 
-/** Admin nạp tiền thủ công */
-export const adminRechargeThunk = createAsyncThunk(
-    'user/adminRecharge',
-    async ({ userId, amount }: { userId: string; amount: number }, { rejectWithValue }) => {
-        try {
-            const res = await axiosInstance.post('/api/user/admin-recharge', { userId, amount });
-            // Trả về dữ liệu mới để cập nhật UI
-            return res.data.success
-                ? { userId, data: res.data.data, message: res.data.message }
-                : rejectWithValue(res.data.message);
-        } catch (err: any) {
-            return rejectWithValue(err.response?.data?.message || 'Nạp tiền thất bại');
-        }
-    }
-);
+

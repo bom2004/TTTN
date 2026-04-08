@@ -14,6 +14,7 @@ export interface Promotion {
     usedBy?: string[];
     roomTypes?: string[];
     image?: string;
+    maxDiscountAmount: number; // New field
     minGeniusLevel: number;
     status: 'active' | 'inactive' | 'expired';
     createdAt: string;

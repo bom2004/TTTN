@@ -49,8 +49,8 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
                 phone: user.phone,
                 role: user.role,
                 avatar: user.avatar,
-                balance: user.balance,
-                totalRecharged: user.totalRecharged
+                totalSpent: user.totalSpent,
+                membershipLevel: user.membershipLevel
             },
             message: "Đăng ký thành công"
         });
@@ -92,8 +92,8 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
                 phone: user.phone,
                 role: user.role,
                 avatar: user.avatar,
-                balance: user.balance,
-                totalRecharged: user.totalRecharged
+                totalSpent: user.totalSpent,
+                membershipLevel: user.membershipLevel
             }
         });
     } catch (error) {
@@ -175,8 +175,8 @@ export const loginWithOTP = async (req: Request, res: Response): Promise<void> =
                 email: user.email,
                 role: user.role,
                 avatar: user.avatar,
-                balance: user.balance,
-                totalRecharged: user.totalRecharged
+                totalSpent: user.totalSpent,
+                membershipLevel: user.membershipLevel
             }
         });
     } catch (error) {

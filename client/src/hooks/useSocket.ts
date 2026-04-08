@@ -5,7 +5,8 @@ import socket from '../lib/redux/socket';
 import { selectAuthUser, selectIsStaff, selectIsAdmin } from '../lib/redux/reducers/auth/selectors';
 import { addBookingSocket, updateBookingSocket } from '../lib/redux/reducers/booking/reducer';
 import { updateRoomStatusSocket } from '../lib/redux/reducers/room/reducer';
-import { setOnlineUsers, addOnlineUser, removeOnlineUser } from '../lib/redux/reducers/user/reducer';
+import { setOnlineUsers, addOnlineUser, removeOnlineUser, updateUserSocket } from '../lib/redux/reducers/user/reducer';
+import { updateUserAuthSocket } from '../lib/redux/reducers/auth';
 
 const useSocket = () => {
     const dispatch = useAppDispatch();
@@ -96,6 +97,16 @@ const useSocket = () => {
             dispatch(removeOnlineUser(userId));
         });
 
+        // Listen for membership upgrades (Current User)
+        socket.on('user_membership_upgraded', (data: { membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum', totalSpent: number }) => {
+            dispatch(updateUserAuthSocket(data));
+        });
+
+        // Listen for all user updates (Staff/Admin)
+        socket.on('user_updated', (updatedUser: any) => {
+            dispatch(updateUserSocket(updatedUser));
+        });
+
         return () => {
             socket.off('connect');
             socket.off('booking_created');
@@ -106,6 +117,8 @@ const useSocket = () => {
             socket.off('get_online_users');
             socket.off('user_online');
             socket.off('user_offline');
+            socket.off('user_membership_upgraded');
+            socket.off('user_updated');
         };
     }, [user, isStaff, isAdmin, dispatch]);
 

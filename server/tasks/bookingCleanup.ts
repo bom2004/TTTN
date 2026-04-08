@@ -24,7 +24,7 @@ export const initBookingCleanupTask = () => {
             const ghostBookings = await bookingModel.find({
                 status: 'pending',
                 paymentStatus: 'unpaid',
-                paymentMethod: { $in: ['vnpay', 'balance', 'wallet'] },
+                paymentMethod: 'vnpay',
                 createdAt: { $lt: expirationLimit }
             });
 

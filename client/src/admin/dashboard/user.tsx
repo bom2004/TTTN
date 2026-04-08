@@ -10,7 +10,6 @@ import {
     updateUserThunk,
     deleteUserThunk,
     adminUpdatePasswordThunk,
-    adminRechargeThunk,
     selectAllUsers,
     selectUserLoading,
 } from '../../lib/redux/reducers/user';
@@ -21,8 +20,7 @@ interface UserForm {
     phone: string;
     password?: string;
     role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
-    balance: string;
-    totalRecharged: string;
+    totalSpent: string;
 }
 
 const UserAdmin: React.FC = () => {
@@ -44,20 +42,13 @@ const UserAdmin: React.FC = () => {
     const [deleteTargetName, setDeleteTargetName] = useState<string>('');
     const [newPassword, setNewPassword] = useState<string>('');
 
-    // State cho tính năng nạp tiền
-    const [isRechargeModalOpen, setIsRechargeModalOpen] = useState<boolean>(false);
-    const [rechargeUserId, setRechargeUserId] = useState<string | null>(null);
-    const [rechargeUserName, setRechargeUserName] = useState<string>('');
-    const [rechargeAmount, setRechargeAmount] = useState<string>('');
-
     const [formData, setFormData] = useState<UserForm>({
         full_name: '',
         email: '',
         phone: '',
         password: '',
         role: 'customer',
-        balance: '0',
-        totalRecharged: '0'
+        totalSpent: '0'
     });
 
     useEffect(() => {
@@ -82,8 +73,7 @@ const UserAdmin: React.FC = () => {
                 data.append('email', formData.email);
                 data.append('phone', formData.phone);
                 data.append('role', formData.role);
-                data.append('balance', formData.balance);
-                data.append('totalRecharged', formData.totalRecharged);
+                data.append('totalSpent', formData.totalSpent);
                 if (avatarFile) data.append('avatar', avatarFile);
 
                 await dispatch(updateUserThunk(data)).unwrap();
@@ -101,8 +91,7 @@ const UserAdmin: React.FC = () => {
                 data.append('email', formData.email);
                 data.append('phone', formData.phone);
                 data.append('role', formData.role);
-                data.append('balance', formData.balance);
-                data.append('totalRecharged', formData.totalRecharged);
+                data.append('totalSpent', formData.totalSpent);
                 data.append('password', formData.password || '');
                 if (avatarFile) data.append('avatar', avatarFile);
 
@@ -131,33 +120,13 @@ const UserAdmin: React.FC = () => {
         }
     };
 
-    const handleRecharge = async (e: React.FormEvent): Promise<void> => {
-        e.preventDefault();
-        try {
-            if (!rechargeUserId) return;
-            const amount = parseInt(rechargeAmount);
-            if (isNaN(amount) || amount <= 0) {
-                toast.error("Số tiền không hợp lệ");
-                return;
-            }
-            
-            const res = await dispatch(adminRechargeThunk({ userId: rechargeUserId, amount })).unwrap();
-            toast.success(res.message || "Nạp tiền thành công");
-            setIsRechargeModalOpen(false);
-            setRechargeAmount('');
-        } catch (error: any) {
-            toast.error(error || "Lỗi khi nạp tiền");
-        }
-    };
-
     const openEditModal = (user: UserData): void => {
         setFormData({
             full_name: user.full_name,
             email: user.email,
             phone: user.phone || '',
             role: user.role,
-            balance: (user.balance || 0).toString(),
-            totalRecharged: (user.totalRecharged || 0).toString()
+            totalSpent: ((user as any).totalSpent || 0).toString()
         });
 
         setSelectedUser(user);
@@ -190,10 +159,10 @@ const UserAdmin: React.FC = () => {
         }
     };
 
-    const getUserLevel = (totalRecharged: number): { level: number; label: string } => {
-        if (totalRecharged < 10000000) return { level: 0, label: 'Silver' };
-        if (totalRecharged < 50000000) return { level: 1, label: 'Gold' };
-        if (totalRecharged < 150000000) return { level: 2, label: 'Diamond' };
+    const getUserLevel = (totalSpent: number): { level: number; label: string } => {
+        if (totalSpent < 2000000) return { level: 0, label: 'Silver' };
+        if (totalSpent < 7000000) return { level: 1, label: 'Gold' };
+        if (totalSpent < 12000000) return { level: 2, label: 'Diamond' };
         return { level: 3, label: `Platinum` };
     };
 
@@ -201,7 +170,7 @@ const UserAdmin: React.FC = () => {
         const matchesSearch = u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             u.email.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = filterRole === '' || u.role === filterRole;
-        const userLevel = getUserLevel(u.totalRecharged || 0).level.toString();
+        const userLevel = getUserLevel((u as any).totalSpent || 0).level.toString();
         const matchesGenius = filterGenius === '' || userLevel === filterGenius;
         return matchesSearch && matchesRole && matchesGenius;
     });
@@ -209,18 +178,12 @@ const UserAdmin: React.FC = () => {
     const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
     const paginatedUsers = filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-    useEffect(() => {
-        if (currentPage > 1 && currentPage > totalPages) {
-            setCurrentPage(totalPages || 1);
-        }
-    }, [totalPages, currentPage]);
-
     return (
         <div className="p-6 bg-gray-50 min-h-screen">
             {/* Header */}
             <div className="mb-6">
                 <h1 className="text-2xl font-semibold text-gray-900">Quản lý người dùng</h1>
-                <p className="text-sm text-gray-500 mt-1">Quản lý tất cả tài khoản người dùng trong hệ thống</p>
+                <p className="text-sm text-gray-500 mt-1">Quản lý tất cả tài khoản người dùng và hạng thành viên</p>
             </div>
 
             {/* Search and Filters */}
@@ -259,7 +222,7 @@ const UserAdmin: React.FC = () => {
                     <option value="3">Platinum</option>
                 </select>
                 <button
-                    onClick={() => { setIsEditMode(false); setFormData({ full_name: '', email: '', phone: '', password: '', role: 'customer', balance: '0', totalRecharged: '0' }); setAvatarFile(null); setAvatarPreview(null); setIsModalOpen(true); }}
+                    onClick={() => { setIsEditMode(false); setFormData({ full_name: '', email: '', phone: '', password: '', role: 'customer', totalSpent: '0' }); setAvatarFile(null); setAvatarPreview(null); setIsModalOpen(true); }}
                     className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition ml-auto"
                 >
                     + Thêm người dùng
@@ -282,15 +245,14 @@ const UserAdmin: React.FC = () => {
                             <tr>
                                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Người dùng</th>
                                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
-                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Số dư</th>
-                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng nạp</th>
+                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng chi tiêu</th>
                                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Cấp độ</th>
-                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {paginatedUsers.map((user) => {
-                                const levelInfo = getUserLevel(user.totalRecharged || 0);
+                                const levelInfo = getUserLevel((user as any).totalSpent || 0);
                                 return (
                                     <tr key={user._id || user.id} className="hover:bg-gray-50 transition">
                                         <td className="px-4 py-3">
@@ -314,10 +276,7 @@ const UserAdmin: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <p className="font-medium text-gray-900">{new Intl.NumberFormat('vi-VN').format(user.balance || 0)}₫</p>
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <p className="font-medium text-emerald-600">{new Intl.NumberFormat('vi-VN').format(user.totalRecharged || 0)}₫</p>
+                                            <p className="font-medium text-emerald-600">{new Intl.NumberFormat('vi-VN').format((user as any).totalSpent || 0)}₫</p>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium 
@@ -330,13 +289,6 @@ const UserAdmin: React.FC = () => {
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex gap-2 justify-end">
-                                                <button
-                                                    onClick={() => { setRechargeUserId(user._id || user.id); setRechargeUserName(user.full_name); setIsRechargeModalOpen(true); }}
-                                                    className="p-1.5 text-gray-400 hover:text-emerald-600 transition"
-                                                    title="Nạp tiền thủ công"
-                                                >
-                                                    <span className="material-symbols-outlined text-[18px]">payments</span>
-                                                </button>
                                                 <button
                                                     onClick={() => openEditModal(user)}
                                                     className="p-1.5 text-gray-400 hover:text-gray-600 transition"
@@ -456,25 +408,14 @@ const UserAdmin: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Số dư (VNĐ)</label>
-                                    <input
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
-                                        type="number"
-                                        value={formData.balance}
-                                        onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Tổng tích lũy (VIP)</label>
-                                    <input
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
-                                        type="number"
-                                        value={formData.totalRecharged}
-                                        onChange={(e) => setFormData({ ...formData, totalRecharged: e.target.value })}
-                                    />
-                                </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Tổng chi tiêu (VNĐ)</label>
+                                <input
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                    type="number"
+                                    value={formData.totalSpent}
+                                    onChange={(e) => setFormData({ ...formData, totalSpent: e.target.value })}
+                                />
                             </div>
 
                             {!isEditMode ? (
@@ -505,42 +446,6 @@ const UserAdmin: React.FC = () => {
                             <button className="w-full mt-2 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition">
                                 {isEditMode ? 'Cập nhật' : 'Tạo tài khoản'}
                             </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Lọc các phần còn lại để giữ nguyên logic Component */}
-            {/* Recharge Modal */}
-            {isRechargeModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="bg-white w-full max-w-sm rounded-lg shadow-xl">
-                        <div className="border-b px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-lg">
-                            <h2 className="text-lg font-semibold text-gray-900">
-                                Nạp tiền thủ công
-                            </h2>
-                            <button onClick={() => setIsRechargeModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-                        </div>
-                        <form onSubmit={handleRecharge} className="p-6">
-                            <p className="text-sm text-gray-600 mb-4">
-                                Khách hàng: <span className="font-bold text-gray-900">{rechargeUserName}</span>
-                            </p>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Số tiền nạp (VNĐ) *</label>
-                            <input
-                                className="w-full px-4 py-3 border border-gray-200 rounded-md text-base font-bold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition mb-6"
-                                type="number"
-                                placeholder="Ví dụ: 1000000"
-                                required
-                                min="1"
-                                value={rechargeAmount}
-                                onChange={(e) => setRechargeAmount(e.target.value)}
-                            />
-                            <div className="flex gap-3 justify-end mt-4">
-                                <button type="button" onClick={() => setIsRechargeModalOpen(false)} className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-md hover:bg-gray-200 transition">Hủy</button>
-                                <button type="submit" className="px-6 py-2 bg-emerald-600 text-white font-medium rounded-md hover:bg-emerald-700 transition" disabled={loading}>
-                                    Xác nhận nạp
-                                </button>
-                            </div>
                         </form>
                     </div>
                 </div>

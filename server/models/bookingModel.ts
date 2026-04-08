@@ -1,5 +1,13 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 
+export interface IPaymentLog {
+    amount: number;
+    paymentMethod: 'vnpay' | 'cash';
+    txnRef?: string; // Lưu mã giao dịch nếu có
+    note?: string; // Ghi chú lý do nộp tiền (VD: Thu thêm do đổi phòng)
+    createdAt: Date;
+}
+
 export interface IBooking extends Document {
     userId?: mongoose.Types.ObjectId;
     customerInfo: {
@@ -17,14 +25,17 @@ export interface IBooking extends Document {
     totalAmount: number;
     discountAmount: number;
     finalAmount: number;
+    originalAmount?: number; // Lưu giá gốc trước khi Admin sửa
     promotionCode?: string;
     status: 'pending' | 'confirmed' | 'checked_in' | 'checked_out' | 'completed' | 'cancelled';
     paymentStatus: 'unpaid' | 'paid' | 'deposited';
-    paymentMethod: 'vnpay' | 'cash' | 'balance' | 'wallet';
+    paymentMethod: 'vnpay' | 'cash';
     paidAmount?: number;
+    paymentHistory: IPaymentLog[]; // Lịch sử thanh toán chi tiết
     vnp_TxnRef?: string; // Hỗ trợ VNPay trực tiếp
     checkInTime?: string;
     specialRequests?: string;
+    adminNote?: string; // Ghi chú riêng của Admin
     createdAt: Date;
     updatedAt: Date;
 }
@@ -76,6 +87,10 @@ const bookingSchema = new Schema<IBooking>(
             type: Number, 
             required: true 
         },
+        originalAmount: { 
+            type: Number, 
+            default: 0 
+        },
         promotionCode: { 
             type: String,
             default: ""
@@ -92,13 +107,22 @@ const bookingSchema = new Schema<IBooking>(
         },
         paymentMethod: { 
             type: String, 
-            enum: ['vnpay', 'cash', 'balance', 'wallet'], 
+            enum: ['vnpay', 'cash'], 
             default: 'vnpay' 
         },
         paidAmount: {
             type: Number,
             default: 0
         },
+        paymentHistory: [
+            {
+                amount: { type: Number, required: true },
+                paymentMethod: { type: String, required: true },
+                txnRef: { type: String },
+                note: { type: String },
+                createdAt: { type: Date, default: Date.now }
+            }
+        ],
         vnp_TxnRef: {
             type: String,
             default: ""
@@ -108,6 +132,10 @@ const bookingSchema = new Schema<IBooking>(
             default: "Tôi chưa biết"
         },
         specialRequests: {
+            type: String,
+            default: ""
+        },
+        adminNote: {
             type: String,
             default: ""
         }

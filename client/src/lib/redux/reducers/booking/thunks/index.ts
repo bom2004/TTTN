@@ -104,3 +104,29 @@ export const createBookingThunk = createAsyncThunk(
         }
     }
 );
+
+/** Admin cập nhật toàn bộ thông tin đơn (Upgrade/Sửa) */
+export const adminUpdateBookingThunk = createAsyncThunk(
+    'booking/adminUpdate',
+    async ({ id, updateData }: { id: string; updateData: any }, { rejectWithValue }) => {
+        try {
+            const res = await axiosInstance.put(`/api/bookings/admin/${id}/update`, updateData);
+            return res.data.success ? res.data.data : rejectWithValue(res.data.message);
+        } catch (err: any) {
+            return rejectWithValue(err.response?.data?.message || 'Cập nhật đơn hàng thất bại');
+        }
+    }
+);
+
+/** Ghi nhận thanh toán bổ sung (Tiền mặt) */
+export const addExtraPaymentThunk = createAsyncThunk(
+    'booking/addPayment',
+    async ({ id, amount, note }: { id: string; amount: number; note?: string }, { rejectWithValue }) => {
+        try {
+            const res = await axiosInstance.post(`/api/bookings/admin/${id}/add-payment`, { amount, note });
+            return res.data.success ? res.data.data : rejectWithValue(res.data.message);
+        } catch (err: any) {
+            return rejectWithValue(err.response?.data?.message || 'Ghi nhận thanh toán thất bại');
+        }
+    }
+);

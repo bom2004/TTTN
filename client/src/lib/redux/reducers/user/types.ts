@@ -8,9 +8,8 @@ export interface User {
     phone?: string;
     role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
     avatar: string;
-    balance: number;
-    totalRecharged: number;
-    membershipLevel?: 'silver' | 'gold' | 'diamond' | 'platinum';
+    totalSpent: number;
+    membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
 }
 
 export interface UserState {
@@ -28,8 +27,7 @@ export interface CreateUserPayload {
     phone?: string;
     password: string;
     role?: 'customer';
-    balance?: number;
-    totalRecharged?: number;
+    totalSpent?: number;
 }
 
 export interface UpdateUserPayload {
@@ -38,16 +36,7 @@ export interface UpdateUserPayload {
     email?: string;
     phone?: string;
     password?: string;
-    balance?: number;
-    totalRecharged?: number;
+    totalSpent?: number;
 }
 
-export interface AdminRechargeResult {
-    userId: string;
-    message: string;
-    data: {
-        balance: number;
-        totalRecharged: number;
-        membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
-    };
-}
+

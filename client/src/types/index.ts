@@ -6,8 +6,8 @@ export interface UserData {
     phone?: string;
     role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
     avatar: string;
-    balance: number;
-    totalRecharged: number;
+    totalSpent: number;
+    membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
 }
 
 
@@ -63,6 +63,7 @@ export interface IPromotion {
     usedBy?: string[];
     roomTypes?: string[]; // New field
     image?: string;
+    maxDiscountAmount: number; // New field
     minGeniusLevel: number;
     status: 'active' | 'inactive' | 'expired';
     createdAt: string;

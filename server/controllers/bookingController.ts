@@ -4,16 +4,18 @@ import bookingModel from "../models/bookingModel.ts";
 import bookingDetailModel from "../models/bookingDetailModel.ts";
 import {
     normalizeDateToUTC,
-    calculateNumNights
+    calculateNumNights,
+    isEligibleForFreeCancellation
 } from "../utils/bookingUtils.ts";
 import {
     checkRoomTypeAvailability,
-    calculateDiscount,
-    chargeWallet,
-    refundToWallet
+    calculateDiscount
 } from "../services/bookingService.ts";
 import { generateVNPayPaymentUrl } from "../services/vnpayService.ts";
 import { emitToUser, emitToAll } from "../socket.ts";
+import { updateUserMembership } from "../services/userService.ts";
+import { getBookingConfirmationTemplate } from "../utils/emailTemplates.ts";
+import userModel from "../models/userModel.ts";
 
 /**
  * Controller: Tạo đơn đặt phòng mới
@@ -28,6 +30,21 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
             roomTypeId, roomQuantity, promotionCode, paymentMethod, paidAmount,
             checkInTime, specialRequests
         } = req.body;
+
+        let finalUserId = userId;
+        
+        // Tự động tìm UserId nếu nhân viên nhập email trùng khớp với user có sẵn
+        if (!finalUserId && customerInfo?.email) {
+            const trimmedEmail = customerInfo.email.trim().toLowerCase();
+            const existingUser = await userModel.findOne({ 
+                email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') } 
+            }).session(session);
+            
+            if (existingUser) {
+                finalUserId = existingUser._id;
+                console.log(`Auto-linked booking to user: ${existingUser.full_name} (${finalUserId}) via email: ${trimmedEmail}`);
+            }
+        }
 
         if (!roomTypeId || !roomQuantity || !checkInDate || !checkOutDate) {
             res.status(400).json({ success: false, message: "Thiếu thông tin đặt phòng bắt buộc." });
@@ -47,7 +64,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 
         // 1. RÀNG BUỘC NGÀY THÁNG (Validation): Đảm bảo dữ liệu không phải "rác"
         const today = normalizeDateToUTC(new Date());
-        
+
         if (targetCheckIn < today) {
             res.status(400).json({ success: false, message: "Ngày nhận phòng không thể ở trong quá khứ." });
             return;
@@ -66,7 +83,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         // 2. Xử lý khuyến mãi thông qua Service (ngoài transaction để tránh write conflict)
         let discountAmount = 0;
         if (promotionCode) {
-            discountAmount = await calculateDiscount(promotionCode as string, userId, totalAmount, roomTypeId);
+            discountAmount = await calculateDiscount(promotionCode as string, finalUserId, totalAmount, roomTypeId);
         }
 
         const finalAmount = totalAmount - discountAmount;
@@ -75,12 +92,12 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 
         // 3. KIỂM TRA TÍNH KHẢ DỤNG TRƯỚC KHI LƯU (Check trước để fail-fast)
         // Thực hiện trong session để có read-consistent view, KHÔNG update roomType ở bước riêng
-        await checkRoomTypeAvailability(roomTypeId, roomQuantity, targetCheckIn, targetCheckOut, session);
+        await checkRoomTypeAvailability(roomTypeId, roomQuantity, targetCheckIn, targetCheckOut, undefined, session);
 
         // 4. Tạo bản ghi Booking với ngày đã được chuẩn hóa
         // Dùng _id của newBooking (đã có ngay khi khởi tạo) làm TxnRef để đảm bảo nhất quán
         const newBooking = new bookingModel({
-            userId, customerInfo, checkInDate: targetCheckIn, checkOutDate: targetCheckOut,
+            userId: finalUserId, customerInfo, checkInDate: targetCheckIn, checkOutDate: targetCheckOut,
             roomTypeId, roomQuantity, assignedRooms: [],
             totalAmount, discountAmount, finalAmount,
             promotionCode: discountAmount > 0 ? (promotionCode || "") : "",
@@ -88,6 +105,12 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
             paymentStatus: req.body.paymentStatus || 'unpaid',
             paymentMethod: actualPaymentMethod,
             paidAmount: actualPaymentMethod === 'vnpay' ? 0 : totalPaid,
+            paymentHistory: (actualPaymentMethod === 'cash' && totalPaid > 0) ? [{
+                amount: totalPaid,
+                paymentMethod: 'cash',
+                note: "Thanh toán khi đặt phòng tại quầy",
+                createdAt: new Date()
+            }] : [],
             checkInTime: checkInTime || "Tôi chưa biết",
             specialRequests: specialRequests || ""
         });
@@ -104,17 +127,15 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         // 6. Xử lý thanh toán
         let paymentUrl = "";
         console.log(`Payment processing for booking ${savedBooking._id}: method=${paymentMethod}, amount=${totalPaid}`);
-        
-        if (paymentMethod === 'wallet' && totalPaid > 0) {
-            await chargeWallet(userId, totalPaid, String(savedBooking._id), session);
-        } else if (paymentMethod === 'vnpay' && totalPaid > 0) {
+
+        if (paymentMethod === 'vnpay' && totalPaid > 0) {
             // Tạo URL VNPay cho đơn đặt phòng
             const ipAddr = (req.headers['x-forwarded-for'] as string) || req.socket?.remoteAddress || '127.0.0.1';
-            
+
             paymentUrl = generateVNPayPaymentUrl(
-                String(userId), 
-                totalPaid, 
-                savedBooking.vnp_TxnRef || `BK${savedBooking._id.toString().slice(-22)}`, 
+                String(finalUserId),
+                totalPaid,
+                savedBooking.vnp_TxnRef || `BK${savedBooking._id.toString().slice(-22)}`,
                 ipAddr,
                 `Thanh toan don phong ${savedBooking._id}`
             );
@@ -127,11 +148,11 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         if (paymentMethod !== 'vnpay') {
             emitToAll('booking_created', savedBooking);
         }
-        emitToUser(String(userId), 'booking_updated', savedBooking);
+        emitToUser(String(finalUserId), 'booking_updated', savedBooking);
 
-        res.status(201).json({ 
-            success: true, 
-            message: "Tạo đơn đặt phòng thành công", 
+        res.status(201).json({
+            success: true,
+            message: "Tạo đơn đặt phòng thành công",
             data: savedBooking,
             paymentUrl: paymentUrl // Trả về URL nếu thanh toán VNPay trực tiếp
         });
@@ -153,11 +174,30 @@ export const getAllBookings = async (req: Request, res: Response): Promise<void>
             .populate('userId', 'full_name email')
             .populate('roomTypeId')
             .sort({ createdAt: -1 });
-        res.json({ success: true, data: bookings });
+
+        // Populate details for each booking (needed for room assignment filtering on frontend)
+        const { default: bookingDetailModel } = await import('../models/bookingDetailModel.ts');
+        const bookingIds = bookings.map(b => b._id);
+        const allDetails = await bookingDetailModel.find({ bookingId: { $in: bookingIds } }).populate('roomId');
+
+        const detailsMap: Record<string, any[]> = {};
+        allDetails.forEach(d => {
+            const key = String(d.bookingId);
+            if (!detailsMap[key]) detailsMap[key] = [];
+            detailsMap[key].push(d);
+        });
+
+        const result = bookings.map(b => ({
+            ...b.toObject(),
+            details: detailsMap[String(b._id)] || []
+        }));
+
+        res.json({ success: true, data: result });
     } catch (error) {
         res.status(500).json({ success: false, message: (error as Error).message });
     }
 };
+
 
 /**
  * Controller: Lấy danh sách đơn hàng của một người dùng (Customer)
@@ -218,11 +258,26 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
             return;
         }
 
+        // CHẶN: Chỉ cho phép Check-out/Hoàn thành nếu đã thanh toán đủ
+        if (['checked_out', 'completed'].includes(status) && (oldBooking.paidAmount || 0) < (oldBooking.finalAmount || 0)) {
+            res.status(400).json({
+                success: false,
+                message: `Khách còn nợ ${(oldBooking.finalAmount - (oldBooking.paidAmount || 0)).toLocaleString('vi-VN')}₫. Vui lòng thu tiền tại quầy trước khi hoàn tất.`
+            });
+            return;
+        }
+
+        const oldStatus = oldBooking.status;
         const booking = await bookingModel.findByIdAndUpdate(
             req.params.id,
             { status, paymentStatus: paymentStatus || oldBooking.paymentStatus },
             { returnDocument: 'after' }
         ).populate('userId', 'full_name email phone').populate('roomTypeId');
+
+        // Logic: Nâng hạng thành viên khi đơn hoàn thành
+        if (status === 'completed' && oldStatus !== 'completed' && booking?.userId) {
+            await updateUserMembership(String(booking.userId), booking.finalAmount || 0);
+        }
 
         // Đồng bộ trạng thái phòng
         let detailStatus = 'waiting';
@@ -236,21 +291,10 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
 
         // Logic Hoàn tiền nếu Admin hủy: Áp dụng cùng tiêu chuẩn 24h trước Check-in hoặc 30p sau khi đặt (Grace period)
         if (status === 'cancelled' && oldBooking.status !== 'cancelled') {
-            const now = new Date().getTime();
-            const checkInTime = new Date(oldBooking.checkInDate).getTime();
-            const createdAtTime = new Date(oldBooking.createdAt).getTime();
-
-            const hoursBeforeCheckIn = (checkInTime - now) / (1000 * 60 * 60);
-            const minsSinceBooking = (now - createdAtTime) / (1000 * 60);
-
-            const isFreeCancellationRange = hoursBeforeCheckIn >= 24 || minsSinceBooking <= 30;
-
-            if (isFreeCancellationRange && (oldBooking.paidAmount || 0) > 0) {
-                const session = await mongoose.startSession();
-                await session.withTransaction(async () => {
-                    await refundToWallet(String(oldBooking.userId), oldBooking.paidAmount || 0, String(oldBooking._id), session, 'ADM_CANCEL');
-                });
-                session.endSession();
+            if (isEligibleForFreeCancellation(oldBooking.checkInDate, oldBooking.createdAt) && (oldBooking.paidAmount || 0) > 0) {
+                // Phải hoàn tiền thực tế (VNPay/TM). Hệ thống không còn ví để tự động hoàn.
+                console.log(`[MANUAL REFUND NEEDED] Booking ${oldBooking._id} cancelled by Admin. Amount: ${oldBooking.paidAmount}`);
+                // Bạn có thể thêm tích hợp API VNPay Refund ở đây nếu cần.
             }
         }
 
@@ -284,20 +328,10 @@ export const cancelBooking = async (req: Request, res: Response): Promise<void> 
 
         // Cấu hình linh hoạt: Cho phép hủy trước ít nhất 24 giờ trước ngày nhận phòng (00:00 UTC)
         // Hoặc cho phép hủy trong vòng 30 phút sau khi đặt đơn nếu lỡ tay đặt nhầm (Grace period)
-        const now = new Date().getTime();
-        const checkInTime = new Date(booking.checkInDate).getTime();
-        const createdAtTime = new Date(booking.createdAt).getTime();
-        
-        const hoursBeforeCheckIn = (checkInTime - now) / (1000 * 60 * 60);
-        const minsSinceBooking = (now - createdAtTime) / (1000 * 60);
-
-        const canCancelByCheckIn = hoursBeforeCheckIn >= 24;
-        const canCancelByGracePeriod = minsSinceBooking <= 30;
-
-        if (!canCancelByCheckIn && !canCancelByGracePeriod) {
-            res.status(400).json({ 
-                success: false, 
-                message: "Không thể tự hủy đơn hàng. Quý khách chỉ có thể hủy trước 24 giờ tính từ ngày nhận phòng, hoặc trong vòng 30 phút sau khi đặt đơn." 
+        if (!isEligibleForFreeCancellation(booking.checkInDate, booking.createdAt)) {
+            res.status(400).json({
+                success: false,
+                message: "Không thể tự hủy đơn hàng. Quý khách chỉ có thể hủy trước 24 giờ tính từ ngày nhận phòng, hoặc trong vòng 30 phút sau khi đặt đơn."
             });
             await session.abortTransaction();
             return;
@@ -305,7 +339,8 @@ export const cancelBooking = async (req: Request, res: Response): Promise<void> 
 
         // Thực hiện hoàn trả thông qua Service
         if ((booking.paidAmount || 0) > 0) {
-            await refundToWallet(String(booking.userId), booking.paidAmount || 0, String(booking._id), session, 'USER_CANCEL');
+            // Phải hoàn tiền thực tế. Hệ thống không còn ví để tự động hoàn.
+            console.log(`[MANUAL REFUND NEEDED] Booking ${booking._id} cancelled by User. Amount: ${booking.paidAmount}`);
         }
 
         // Cập nhật trạng thái hủy
@@ -388,21 +423,21 @@ export const assignAndConfirmBooking = async (req: Request, res: Response): Prom
         if (booking.status === 'confirmed') {
             const now = new Date();
             const checkInDate = new Date(booking.checkInDate);
-            const checkInTimeString = booking.checkInTime !== 'Tôi chưa biết' 
-                ? (booking.checkInTime || '14:00') 
+            const checkInTimeString = booking.checkInTime !== 'Tôi chưa biết'
+                ? (booking.checkInTime || '14:00')
                 : '14:00';
-            
-            const [hours, minutes] = checkInTimeString.includes(':') 
-                ? checkInTimeString.split(':').map(Number) 
+
+            const [hours, minutes] = checkInTimeString.includes(':')
+                ? checkInTimeString.split(':').map(Number)
                 : [14, 0];
 
             const checkInTimePoint = new Date(checkInDate.getTime());
             checkInTimePoint.setUTCHours((hours || 14) - 7, minutes || 0, 0, 0);
 
             if (now > checkInTimePoint) {
-                res.status(400).json({ 
-                    success: false, 
-                    message: "Đã qua thời gian check-in dự kiến. Quản trị viên không thể thay đổi phòng đã gán cho khách hàng sau thời điểm này." 
+                res.status(400).json({
+                    success: false,
+                    message: "Đã qua thời gian check-in dự kiến. Quản trị viên không thể thay đổi phòng đã gán cho khách hàng sau thời điểm này."
                 });
                 await session.abortTransaction();
                 return;
@@ -416,7 +451,7 @@ export const assignAndConfirmBooking = async (req: Request, res: Response): Prom
             await session.abortTransaction();
             return;
         }
-
+        // Lấy thông tin phòng
         const roomModel = (await import('../models/roomModel.ts')).default;
         const rooms = await roomModel.find({ _id: { $in: roomIds } }).session(session);
 
@@ -438,7 +473,7 @@ export const assignAndConfirmBooking = async (req: Request, res: Response): Prom
                 return;
             }
         }
-
+        // Tính giá tiền cho mỗi phòng
         const pricePerRoom = Math.round(booking.finalAmount / (booking.roomQuantity || 1));
         const detailsData = rooms.map(room => ({
             bookingId: booking._id,
@@ -454,34 +489,19 @@ export const assignAndConfirmBooking = async (req: Request, res: Response): Prom
         await booking.save({ session });
 
         await session.commitTransaction();
-
+        // Cập nhật lại thông tin đơn đặt phòng
         const updatedBooking = await bookingModel.findById(id).populate('roomTypeId');
         const details = await bookingDetailModel.find({ bookingId: id }).populate('roomId');
-
+        // Gửi thông tin đơn đặt phòng cho client
         const bookingData = { ...updatedBooking?.toObject(), details, roomTypeInfo: updatedBooking?.roomTypeId };
 
         if (updatedBooking) {
             emitToAll('booking_status_changed', bookingData);
             emitToUser(String(booking.userId), 'booking_updated', bookingData);
         }
-
-        const roomNumbers = rooms.map(r => r.roomNumber).join(", ");
+        // Gửi email xác nhận cho khách hàng
         import('../utils/sendMail.ts').then(({ default: sendMail }) => {
-            const checkInDate = new Date(booking.checkInDate).toLocaleDateString('vi-VN');
-            const checkOutDate = new Date(booking.checkOutDate).toLocaleDateString('vi-VN');
-
-            const emailContent = `Kính gửi anh/chị ${booking.customerInfo.name}, \n\n`
-                + `Yêu cầu Đặt phòng của quý khách tại Khách sạn chúng tôi đã được XÁC NHẬN.\n`
-                + `Sau đây là thông tin chi tiết:\n`
-                + `Mã đơn đặt phòng: ${booking._id}\n`
-                + `Loại phòng đã đặt: ${(booking.roomTypeId as any).name || 'Hợp lệ'}\n`
-                + `Số phòng quý khách được bố trí: ${roomNumbers}\n`
-                + `Lịch Check-in dự kiến: ${booking.checkInTime !== 'Tôi chưa biết' ? booking.checkInTime : '14:00'}, ngày ${checkInDate}\n`
-                + `Lịch Check-out: Trước 12:00 ngày ${checkOutDate}\n`
-                + `Thanh toán: ${booking.finalAmount.toLocaleString('vi-VN')} VND `
-                + `(Đã thanh toán: ${booking.paidAmount?.toLocaleString('vi-VN')} VND)\n\n`
-                + `Cảm ơn quý khách đã gửi gắm kỳ nghỉ của mình cho dịch vụ của chúng tôi.\n`
-                + `Trân trọng!`;
+            const emailContent = getBookingConfirmationTemplate(booking, rooms.map(r => r.roomNumber).join(", "));
 
             sendMail(booking.customerInfo.email, "[HTQLKS] Xác nhận đơn đặt và số phòng cụ thể", emailContent).catch(err => {
                 console.error("Lỗi gửi email xác nhận: ", err);

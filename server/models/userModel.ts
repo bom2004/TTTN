@@ -7,8 +7,7 @@ export interface IUser extends Document {
     password?: string;
     role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
     avatar: string;
-    balance: number;
-    totalRecharged: number;
+    totalSpent: number;
     membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
     createdAt: Date;
     updatedAt: Date;
@@ -25,8 +24,7 @@ const userSchema = new mongoose.Schema({
         default: 'customer' 
     },
     avatar: { type: String, default: "" },
-    balance: { type: Number, default: 0 },
-    totalRecharged: { type: Number, default: 0 },
+    totalSpent: { type: Number, default: 0 },
     membershipLevel: { 
         type: String, 
         enum: ['silver', 'gold', 'diamond', 'platinum'], 

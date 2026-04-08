@@ -13,6 +13,7 @@ export interface IPromotion extends Document {
     usedBy: mongoose.Types.ObjectId[];
     roomTypes: mongoose.Types.ObjectId[]; // New field
     image: string;
+    maxDiscountAmount: number; // New field: Số tiền giảm tối đa
     minGeniusLevel: number;
     status: 'active' | 'inactive' | 'expired';
     createdAt: Date;
@@ -75,6 +76,10 @@ const promotionSchema = new mongoose.Schema({
     image: {
         type: String,
         default: ""
+    },
+    maxDiscountAmount: {
+        type: Number,
+        default: 0 // 0 = Không giới hạn số tiền giảm
     },
     minGeniusLevel: {
         type: Number,

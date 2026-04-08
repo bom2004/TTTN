@@ -35,6 +35,13 @@ const authSlice = createSlice({
                 localStorage.setItem('token', action.payload.token);
             }
         },
+        updateUserAuthSocket(state, action: PayloadAction<{ membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum'; totalSpent: number }>) {
+            if (state.user) {
+                state.user.membershipLevel = action.payload.membershipLevel;
+                state.user.totalSpent = action.payload.totalSpent;
+                localStorage.setItem('userData', JSON.stringify(state.user));
+            }
+        },
     },
     extraReducers: (builder) => {
         // Login
@@ -119,8 +126,8 @@ const authSlice = createSlice({
                         phone: dbUser.phone,
                         role: dbUser.role,
                         avatar: dbUser.avatar,
-                        balance: dbUser.balance || 0,
-                        totalRecharged: dbUser.totalRecharged || 0,
+                        totalSpent: dbUser.totalSpent || 0,
+                        membershipLevel: dbUser.membershipLevel || 'silver',
                         token: state.token!, 
                     };
                     state.user = userData;
@@ -156,5 +163,5 @@ const authSlice = createSlice({
     },
 });
 
-export const { logout, clearError, setUser } = authSlice.actions;
+export const { logout, clearError, setUser, updateUserAuthSocket } = authSlice.actions;
 export default authSlice.reducer;

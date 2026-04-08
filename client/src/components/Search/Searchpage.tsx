@@ -313,11 +313,18 @@ const SearchPage: React.FC = () => {
                                         const rating = rt.rating || 0;
                                         const reviewCount = rt.reviewCount || 0;
 
+                                        const isFullyBooked = !!(checkIn && checkOut && room.availableRooms === 0);
+
                                         return (
                                             <div
                                                 key={room._id}
-                                                className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col md:flex-row hover:shadow-2xl transition-all duration-500 cursor-pointer group relative"
+                                                className={`bg-white rounded-2xl border overflow-hidden flex flex-col md:flex-row transition-all duration-500 relative ${
+                                                    isFullyBooked
+                                                        ? 'border-gray-200 opacity-60 cursor-not-allowed'
+                                                        : 'border-gray-200 hover:shadow-2xl cursor-pointer group'
+                                                }`}
                                                 onClick={() => {
+                                                    if (isFullyBooked) return;
                                                     setSelectedRoomForDetails(room);
                                                     setShowDetails(true);
                                                 }}
@@ -333,10 +340,17 @@ const SearchPage: React.FC = () => {
 
                                                     {/* Các nhãn đặc biệt (Top Badges) */}
                                                     <div className="absolute top-4 left-4 flex flex-col gap-2">
-                                                        <span className="bg-[#febb02] text-[#003580] px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
-                                                            <span className="material-symbols-outlined text-[14px]">bolt</span>
-                                                            Giá rẻ nhất
-                                                        </span>
+                                                        {isFullyBooked ? (
+                                                            <span className="bg-gray-800/80 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
+                                                                <span className="material-symbols-outlined text-[14px]">block</span>
+                                                                Hết phòng
+                                                            </span>
+                                                        ) : (
+                                                            <span className="bg-[#febb02] text-[#003580] px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
+                                                                <span className="material-symbols-outlined text-[14px]">bolt</span>
+                                                                Giá rẻ nhất
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <button
                                                         onClick={e => { e.stopPropagation(); }}
@@ -429,17 +443,27 @@ const SearchPage: React.FC = () => {
                                                                 <span className="text-3xl font-[900] text-[#1a1a1a]">{formatCurrency(room.price)}₫</span>
                                                             </div>
 
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedRoomForDetails(room);
-                                                                    setShowDetails(true);
-                                                                }}
-                                                                className="bg-[#006ce4] hover:bg-[#0057b8] text-white font-black text-sm px-10 py-4 rounded-xl transition-all shadow-xl shadow-blue-900/10 transform hover:scale-105 active:scale-95 flex items-center gap-3"
-                                                            >
-                                                                Xem tình trạng phòng
-                                                                <span className="material-symbols-outlined text-lg">arrow_forward</span>
-                                                            </button>
+                                                            {isFullyBooked ? (
+                                                                <button
+                                                                    disabled
+                                                                    className="bg-gray-300 text-gray-500 font-black text-sm px-10 py-4 rounded-xl cursor-not-allowed flex items-center gap-3"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-lg">block</span>
+                                                                    Hết phòng trong ngày này
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedRoomForDetails(room);
+                                                                        setShowDetails(true);
+                                                                    }}
+                                                                    className="bg-[#006ce4] hover:bg-[#0057b8] text-white font-black text-sm px-10 py-4 rounded-xl transition-all shadow-xl shadow-blue-900/10 transform hover:scale-105 active:scale-95 flex items-center gap-3"
+                                                                >
+                                                                    Xem tình trạng phòng
+                                                                    <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                                                                </button>
+                                                            )}
 
                                                         </div>
                                                     </div>

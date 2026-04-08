@@ -4,8 +4,11 @@ import bookingDetailModel from "../models/bookingDetailModel.ts";
 import roomModel from "../models/roomModel.ts";
 import promotionModel from "../models/promotionModel.ts";
 import userModel from "../models/userModel.ts";
-import depositModel from "../models/depositModel.ts";
-import { calculateGeniusLevel } from "../utils/bookingUtils.ts";
+import { 
+    calculateGeniusLevel, 
+    normalizeDateToUTC, 
+    calculateNumNights 
+} from "../utils/bookingUtils.ts";
 
 /**
  * Service: Kiểm tra tính sẵn sàng của Loại phòng (Inventory-based)
@@ -15,15 +18,22 @@ export const checkRoomTypeAvailability = async (
     quantity: number,
     targetIn: Date,
     targetOut: Date,
+    excludeBookingId?: string,
     session?: ClientSession
 ) => {
-    // Tìm các đơn đặt trùng khoảng thời gian
-    const overlappingBookings = await bookingModel.find({
+    // Tìm các đơn đặt trùng khoảng thời gian, loại ra đơn hàng hiện tại nếu đang sửa đổi
+    const query: any = {
         status: { $nin: ['cancelled', 'completed', 'checked_out'] },
         checkInDate: { $lt: targetOut },
         checkOutDate: { $gt: targetIn },
         roomTypeId: roomTypeId
-    }).session(session as any);
+    };
+
+    if (excludeBookingId) {
+        query._id = { $ne: excludeBookingId };
+    }
+
+    const overlappingBookings = await bookingModel.find(query).session(session as any);
 
     let bookedCount = 0;
     if (overlappingBookings.length > 0) {
@@ -47,7 +57,7 @@ export const checkRoomTypeAvailability = async (
     }).session(session as any);
 
     // Fallback sang totalInventory của RT nếu không có phòng vật lý hoặc số lượng không khớp
-    // Đảm bảo hệ thống vẫn cho phép đặt phòng ngay cả khi chưa tạo danh sách phòng chi tiết
+    // Đạm bảo hệ thống vẫn cho phép đặt phòng ngay cả khi chưa tạo danh sách phòng chi tiết
     let totalInventory = physicalRoomsCount > 0 ? physicalRoomsCount : (roomTypeDoc.totalInventory || 0);
 
     if (totalInventory - bookedCount < quantity) {
@@ -71,7 +81,7 @@ export const calculateDiscount = async (
     if (now < promotion.startDate || now > promotion.endDate) return 0;
 
     const user = await userModel.findById(userId);
-    const userLevel = user ? calculateGeniusLevel(user.totalRecharged || 0) : 0;
+    const userLevel = user ? calculateGeniusLevel(user.totalSpent || 0) : 0;
 
     if (totalAmt < promotion.minOrderValue || userLevel < (promotion.minGeniusLevel || 0)) return 0;
 
@@ -93,55 +103,159 @@ export const calculateDiscount = async (
     }
     await promotion.save();
 
-    return (totalAmt * promotion.discountPercent) / 100;
+    let discount = (totalAmt * promotion.discountPercent) / 100;
+    
+    // Áp dụng giới hạn số tiền giảm tối đa (Nếu có)
+    if (promotion.maxDiscountAmount > 0 && discount > promotion.maxDiscountAmount) {
+        discount = promotion.maxDiscountAmount;
+    }
+
+    return discount;
 };
 
 /**
- * Service: Xử lý thanh toán qua ví nội bộ
+ * Service: Tính toán tổng tiền cho đơn đặt phòng
  */
-export const chargeWallet = async (
-    userId: string,
-    amount: number,
-    bookingId: string,
-    session: ClientSession
+export const calculateBookingTotal = async (
+    roomTypeId: string,
+    quantity: number,
+    checkIn: Date,
+    checkOut: Date,
+    session?: ClientSession
 ) => {
-    const user = await userModel.findById(userId).session(session);
-    if (!user || user.balance < amount) throw new Error("Số dư tài khoản không đủ.");
+    const { default: roomTypeModel } = await import('../models/roomTypeModel.ts');
+    const roomType = await roomTypeModel.findById(roomTypeId).session(session as any);
+    if (!roomType) throw new Error("Loại phòng không tồn tại.");
 
-    await userModel.findByIdAndUpdate(userId, {
-        $inc: { balance: -amount }
-    }, { session });
-
-    await depositModel.create([{
-        userId,
-        amount: -amount,
-        txnRef: `BOOKING_${bookingId}`,
-        status: 'success'
-    }], { session });
+    const numNights = calculateNumNights(checkIn, checkOut);
+    return roomType.basePrice * quantity * numNights;
 };
 
 /**
- * Service: Xử lý hoàn trả tiền vào ví
+ * Service: Admin cập nhật thông tin đơn hàng (Nâng cấp hệ thống)
  */
-export const refundToWallet = async (
-    userId: string,
-    amount: number,
+export const adminUpdateBooking = async (
     bookingId: string,
-    session: ClientSession,
-    type: 'USER_CANCEL' | 'ADM_CANCEL' = 'USER_CANCEL'
+    updateData: any,
+    adminId?: string,
+    session?: ClientSession
 ) => {
-    if (amount <= 0) return;
+    const booking = await bookingModel.findById(bookingId).session(session as any);
+    if (!booking) throw new Error("Không tìm thấy đơn đặt phòng.");
 
-    await userModel.findByIdAndUpdate(userId, {
-        $inc: { balance: amount }
-    }, { session });
+    const oldStatus = booking.status;
 
-    const ref = type === 'ADM_CANCEL' ? 'REFUND_ADM_' : 'REFUND_';
+    // Không được phép sửa nếu đã check-out hoặc hoàn thành (Trừ khi admin cấp cao)
+    if (['checked_out', 'completed'].includes(booking.status) && updateData.status !== 'completed') {
+        throw new Error("Đơn đặt phòng đã hoàn tất, không thể thay đổi thông tin.");
+    }
 
-    await depositModel.create([{
-        userId,
-        amount,
-        txnRef: `${ref}${bookingId.toString().slice(-6).toUpperCase()}`,
-        status: 'success',
-    }], { session });
+    // 1. Lưu giá gốc nếu đây là lần đầu sửa
+    if (!booking.originalAmount) {
+        booking.originalAmount = booking.finalAmount;
+    }
+
+    const { 
+        roomTypeId, roomQuantity, checkInDate, checkOutDate, 
+        paidAmount, paymentMethod, status, paymentStatus,
+        customerInfo, specialRequests, adminNote, checkInTime
+    } = updateData;
+
+    let isInventoryChanged = false;
+    const newCheckIn = checkInDate ? normalizeDateToUTC(checkInDate) : booking.checkInDate;
+    const newCheckOut = checkOutDate ? normalizeDateToUTC(checkOutDate) : booking.checkOutDate;
+    const newRoomTypeId = roomTypeId || booking.roomTypeId;
+    const newQuantity = roomQuantity || booking.roomQuantity;
+
+    // Kiểm tra xem có thay đổi các yếu tố ảnh hưởng kho phòng không
+    if (
+        newCheckIn.getTime() !== booking.checkInDate.getTime() ||
+        newCheckOut.getTime() !== booking.checkOutDate.getTime() ||
+        String(newRoomTypeId) !== String(booking.roomTypeId) ||
+        newQuantity !== booking.roomQuantity
+    ) {
+        isInventoryChanged = true;
+    }
+
+    let forcedPending = false;
+
+    if (isInventoryChanged) {
+        // Kiểm tra phòng trống
+        await checkRoomTypeAvailability(String(newRoomTypeId), newQuantity, newCheckIn, newCheckOut, String(booking._id), session);
+        
+        // Nếu đổi loại phòng hoặc ngày → xóa phòng đã gán cũ
+        const roomTypeChanged = String(newRoomTypeId) !== String(booking.roomTypeId);
+        const checkInChanged = newCheckIn.getTime() !== booking.checkInDate.getTime();
+        const checkOutChanged = newCheckOut.getTime() !== booking.checkOutDate.getTime();
+
+        if (roomTypeChanged || checkInChanged || checkOutChanged) {
+            booking.assignedRooms = [];
+            await bookingDetailModel.deleteMany({ bookingId: booking._id }).session(session as any);
+
+            // Đang 'confirmed' → bắt buộc gán phòng mới → reset về 'pending'
+            // Dùng flag để ngăn step 3 ghi đè lại
+            if (booking.status === 'confirmed') {
+                booking.status = 'pending';
+                forcedPending = true;
+            }
+        }
+
+        booking.checkInDate = newCheckIn;
+        booking.checkOutDate = newCheckOut;
+        booking.roomTypeId = newRoomTypeId as any;
+        booking.roomQuantity = newQuantity;
+
+        const newTotal = await calculateBookingTotal(String(newRoomTypeId), newQuantity, newCheckIn, newCheckOut, session);
+        booking.totalAmount = newTotal;
+        booking.finalAmount = newTotal - (booking.discountAmount || 0);
+    }
+
+    // 2. Xử lý tài chính
+    const currentPaid = booking.paidAmount || 0;
+    if (paidAmount !== undefined && paidAmount !== currentPaid) {
+        const extraAmount = paidAmount - currentPaid;
+        if (extraAmount !== 0) {
+            booking.paymentHistory.push({
+                amount: extraAmount,
+                paymentMethod: paymentMethod || 'cash',
+                note: extraAmount > 0 ? "Admin thu thêm trực tiếp" : "Admin hoàn trả tiền dư",
+                createdAt: new Date()
+            });
+            booking.paidAmount = paidAmount;
+        }
+    }
+
+    const finalPaid = booking.paidAmount || 0;
+    const finalBill = booking.finalAmount || 0;
+
+    if (finalPaid >= finalBill) {
+        booking.paymentStatus = 'paid';
+    } else if (finalPaid > 0) {
+        booking.paymentStatus = 'deposited';
+    } else {
+        booking.paymentStatus = 'unpaid';
+    }
+
+    // 3. Cập nhật trạng thái và TÍNH HẠNG THÀNH VIÊN
+    // forcedPending = true có nghĩa backend đã reset về 'pending' do đổi loại phòng/ngày → KHÔNG cho ghi đè lại
+    if (status && !forcedPending) {
+        // Nếu chuyển sang COMPLETED lần đầu tiên
+        if (status === 'completed' && oldStatus !== 'completed' && booking.userId) {
+            import('./userService.ts').then(({ updateUserMembership }) => {
+                updateUserMembership(String(booking.userId), booking.finalAmount || 0, session as any).catch(err => {
+                    console.error("Failed to update user membership during adminUpdateBooking:", err);
+                });
+            });
+        }
+        booking.status = status;
+    }
+
+    if (customerInfo) booking.customerInfo = { ...booking.customerInfo, ...customerInfo };
+    if (paymentStatus) booking.paymentStatus = paymentStatus; 
+    if (checkInTime) booking.checkInTime = checkInTime;
+    if (specialRequests !== undefined) booking.specialRequests = specialRequests;
+    if (adminNote !== undefined) booking.adminNote = adminNote;
+
+    await booking.save({ session });
+    return booking;
 };

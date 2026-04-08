@@ -10,10 +10,17 @@ import dayjs from "dayjs";
  */
 export const getAdminStats = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { period = 'month' } = req.query;
+        const { period = 'month', month: qMonth, year: qYear } = req.query;
         const now = dayjs();
 
-        // 1. Thống kê doanh thu và số lượng đơn đặt
+        // Lấy tháng và năm được chọn (mặc định là hiện tại)
+        const selectedMonth = qMonth ? parseInt(qMonth as string) : now.month() + 1;
+        const selectedYear = qYear ? parseInt(qYear as string) : now.year();
+
+        const startDate = dayjs(`${selectedYear}-${selectedMonth}-01`).startOf('month').toDate();
+        const endDate = dayjs(`${selectedYear}-${selectedMonth}-01`).endOf('month').toDate();
+
+        // 1. Thống kê biểu đồ doanh thu (Trend) - Giữ nguyên logic hiển thị xu hướng
         const monthlyStats = await bookingModel.aggregate([
             {
                 $match: {
@@ -34,10 +41,8 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
             { $sort: { "_id.year": 1, "_id.month": 1 } }
         ]);
 
-        // Chuẩn hóa dữ liệu dựa trên period
         let revenueData = [];
         if (period === 'quarter') {
-            // Nhóm lại theo quý
             const quarters: any = {};
             monthlyStats.forEach(item => {
                 const key = `Quý ${item._id.quarter}/${item._id.year}`;
@@ -47,16 +52,13 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
                 quarters[key].revenue += item.revenue;
                 quarters[key].bookings += item.bookings;
             });
-            revenueData = Object.values(quarters).slice(-4); // Lấy 4 quý gần nhất
+            revenueData = Object.values(quarters).slice(-4);
         } else {
-            // Mặc định hiển thị 12 tháng gần nhất (Rolling 12 months)
             for (let i = 11; i >= 0; i--) {
                 const date = now.subtract(i, 'month');
                 const month = date.month() + 1;
                 const year = date.year();
-                
                 const monthData = monthlyStats.find(s => s._id.month === month && s._id.year === year);
-                
                 revenueData.push({
                     name: `T${month}/${year}`,
                     revenue: monthData ? monthData.revenue : 0,
@@ -65,9 +67,14 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
             }
         }
 
-        // 2. Thống kê mức độ phổ biến của loại phòng
+        // 2. Thống kê cơ cấu phòng - LỌC THEO THÁNG ĐƯỢC CHỌN
         const roomTypeStats = await bookingModel.aggregate([
-            { $match: { status: { $ne: 'cancelled' } } },
+            { 
+                $match: { 
+                    status: { $ne: 'cancelled' },
+                    createdAt: { $gte: startDate, $lte: endDate }
+                } 
+            },
             {
                 $group: {
                     _id: "$roomTypeId",
@@ -76,7 +83,7 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
             },
             {
                 $lookup: {
-                    from: "roomtypes", // Tên collection trong DB (thường là số nhiều)
+                    from: "roomtypes",
                     localField: "_id",
                     foreignField: "_id",
                     as: "roomTypeInfo"
@@ -91,16 +98,26 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
             }
         ]);
 
-        // 3. Tính tỷ lệ lấp đầy phòng hiện tại (Occupancy Rate)
-        const totalRooms = await roomModel.countDocuments({ status: { $ne: 'maintenance' } });
-        const occupiedRooms = await roomModel.countDocuments({ status: 'occupied' });
-        const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
-
-        // 4. Tổng quan (Counters)
-        const totalRevenue = await bookingModel.aggregate([
-            { $match: { status: 'completed' } },
+        // 3. Counter Summary - LỌC THEO THÁNG ĐƯỢC CHỌN
+        const monthRevenue = await bookingModel.aggregate([
+            { 
+                $match: { 
+                    status: 'completed',
+                    createdAt: { $gte: startDate, $lte: endDate }
+                } 
+            },
             { $group: { _id: null, total: { $sum: "$finalAmount" } } }
         ]);
+
+        const monthBookingsCount = await bookingModel.countDocuments({
+            status: { $ne: 'cancelled' },
+            createdAt: { $gte: startDate, $lte: endDate }
+        });
+
+        // Tỷ lệ lấp đầy hiện tại (Real-time, không phụ thuộc tháng chọn)
+        const totalRoomsGlobal = await roomModel.countDocuments({ status: { $ne: 'maintenance' } });
+        const occupiedRoomsGlobal = await roomModel.countDocuments({ status: 'occupied' });
+        const occupancyRate = totalRoomsGlobal > 0 ? Math.round((occupiedRoomsGlobal / totalRoomsGlobal) * 100) : 0;
 
         res.status(200).json({
             success: true,
@@ -109,10 +126,9 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
                 roomTypeStats,
                 occupancyRate,
                 summary: {
-                    totalRevenue: totalRevenue[0]?.total || 0,
-                    totalBookings: await bookingModel.countDocuments({ status: { $ne: 'cancelled' } }),
-                    activePromotions: 0, // Placeholder
-                    totalRooms
+                    totalRevenue: monthRevenue[0]?.total || 0,
+                    totalBookings: monthBookingsCount,
+                    totalRooms: totalRoomsGlobal
                 }
             }
         });

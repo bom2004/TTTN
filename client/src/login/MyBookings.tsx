@@ -47,7 +47,7 @@ const ReviewModal: React.FC<{ booking: any; onClose: () => void; onSaved: () => 
     };
 
     return (
-        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto shadow-2xl">
             <div className="bg-white w-full max-w-md rounded-[40px] overflow-hidden animate-in fade-in zoom-in duration-300 shadow-2xl">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
@@ -124,7 +124,6 @@ const DetailModal: React.FC<{ booking: any; onClose: () => void; isCancellable: 
             cash: 'Tiền mặt',
             bank_transfer: 'Chuyển khoản',
             credit_card: 'Thẻ tín dụng',
-            wallet: 'Ví QuickStay',
             momo: 'Ví MoMo',
             zalopay: 'ZaloPay',
             vnpay: 'VNPay'
@@ -588,7 +587,7 @@ const MyBookings: React.FC = () => {
                                                             >
                                                                 Chi tiết
                                                             </button>
-                                                            {booking.status === 'completed' && (
+                                                            {['checked_out', 'completed'].includes(booking.status) && (
                                                                 <button
                                                                     onClick={() => setReviewingBooking(booking)}
                                                                     className="px-4 py-2 text-sm text-emerald-600 font-black hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100 shadow-sm hover:shadow-md flex items-center gap-1"

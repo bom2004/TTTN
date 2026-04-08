@@ -11,8 +11,7 @@ interface UserForm {
     phone: string;
     password?: string;
     role: 'customer';
-    balance: string;
-    totalRecharged: string;
+    totalSpent: string;
 }
 
 const UserStaff: React.FC = () => {
@@ -35,8 +34,7 @@ const UserStaff: React.FC = () => {
         phone: '',
         password: '',
         role: 'customer',
-        balance: '0',
-        totalRecharged: '0'
+        totalSpent: '0'
     });
 
     useEffect(() => {
@@ -65,8 +63,7 @@ const UserStaff: React.FC = () => {
                 data.append('email', formData.email);
                 data.append('phone', formData.phone);
                 data.append('role', 'customer');
-                data.append('balance', formData.balance);
-                data.append('totalRecharged', formData.totalRecharged);
+                data.append('totalSpent', formData.totalSpent);
                 if (formData.password) data.append('password', formData.password);
 
                 if (avatarFile) data.append('avatar', avatarFile);
@@ -78,8 +75,7 @@ const UserStaff: React.FC = () => {
                 data.append('email', formData.email);
                 data.append('phone', formData.phone);
                 data.append('role', 'customer');
-                data.append('balance', formData.balance);
-                data.append('totalRecharged', formData.totalRecharged);
+                data.append('totalSpent', formData.totalSpent);
                 data.append('password', formData.password || '123456');
 
                 if (avatarFile) data.append('avatar', avatarFile);
@@ -113,8 +109,7 @@ const UserStaff: React.FC = () => {
             email: user.email,
             phone: user.phone || '',
             role: 'customer',
-            balance: (user.balance || 0).toString(),
-            totalRecharged: (user.totalRecharged || 0).toString()
+            totalSpent: ((user as any).totalSpent || 0).toString()
         });
         setSelectedUser(user);
         setAvatarFile(null);
@@ -130,8 +125,7 @@ const UserStaff: React.FC = () => {
             phone: '',
             password: '',
             role: 'customer',
-            balance: '0',
-            totalRecharged: '0'
+            totalSpent: '0'
         });
         setSelectedUser(null);
         setIsEditMode(false);
@@ -139,10 +133,10 @@ const UserStaff: React.FC = () => {
         setAvatarPreview(null);
     };
 
-    const getUserLevel = (totalRecharged: number): { level: number; label: string; color: string } => {
-        if (!totalRecharged || totalRecharged < 10000000) return { level: 0, label: 'Silver', color: 'bg-gray-100 text-gray-600' };
-        if (totalRecharged < 50000000) return { level: 1, label: 'Gold', color: 'bg-yellow-100 text-yellow-700' };
-        if (totalRecharged < 150000000) return { level: 2, label: 'Diamond', color: 'bg-blue-100 text-blue-700' };
+    const getUserLevel = (totalSpent: number): { level: number; label: string; color: string } => {
+        if (!totalSpent || totalSpent < 2000000) return { level: 0, label: 'Silver', color: 'bg-gray-100 text-gray-600' };
+        if (totalSpent < 7000000) return { level: 1, label: 'Gold', color: 'bg-yellow-100 text-yellow-700' };
+        if (totalSpent < 12000000) return { level: 2, label: 'Diamond', color: 'bg-blue-100 text-blue-700' };
         return { level: 3, label: 'Platinum', color: 'bg-purple-100 text-purple-700' };
     };
 
@@ -203,7 +197,7 @@ const UserStaff: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {filteredUsers.map((user) => {
-                                    const levelInfo = getUserLevel(user.totalRecharged || 0);
+                                    const levelInfo = getUserLevel((user as any).totalSpent || 0);
                                     return (
                                         <tr key={user._id || user.id} className="hover:bg-gray-50 transition">
                                             <td className="px-4 py-3">
@@ -227,8 +221,8 @@ const UserStaff: React.FC = () => {
                                             <td className="px-4 py-3">
                                                 <p className="text-gray-600">{user.phone || '—'}</p>
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <p className="font-medium text-gray-900">{new Intl.NumberFormat('vi-VN').format(user.balance || 0)}₫</p>
+                                            <td className="px-4 py-3">
+                                                <p className="font-medium text-gray-900">{new Intl.NumberFormat('vi-VN').format((user as any).totalSpent || 0)}₫</p>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${levelInfo.color}`}>
@@ -326,6 +320,16 @@ const UserStaff: React.FC = () => {
                                     placeholder="0123456789"
                                     value={formData.phone}
                                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Tổng chi tiêu (VNĐ)</label>
+                                <input
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                    type="number"
+                                    value={formData.totalSpent}
+                                    onChange={(e) => setFormData({ ...formData, totalSpent: e.target.value })}
                                 />
                             </div>
 

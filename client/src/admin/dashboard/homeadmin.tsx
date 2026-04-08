@@ -27,6 +27,7 @@ const HomeAdmin: React.FC = () => {
   const data = useAppSelector(selectStatsData);
   const loading = useAppSelector(selectStatsLoading);
   const [viewMode, setViewMode] = useState<'month' | 'quarter'>('month');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
 
   const handleExportExcel = () => {
     if (data?.revenueData) {
@@ -35,8 +36,9 @@ const HomeAdmin: React.FC = () => {
   };
 
   useEffect(() => {
-    dispatch(fetchAdminStatsThunk(viewMode));
-  }, [dispatch, viewMode]);
+    const [year, month] = selectedMonth.split('-').map(Number);
+    dispatch(fetchAdminStatsThunk({ period: viewMode, month, year }));
+  }, [dispatch, viewMode, selectedMonth]);
 
   if (loading && !data) {
     return (
@@ -60,14 +62,14 @@ const HomeAdmin: React.FC = () => {
       title: "Tổng doanh thu",
       value: `${new Intl.NumberFormat('vi-VN').format(data?.summary.totalRevenue || 0)}₫`,
       icon: <DollarSign className="w-5 h-5 text-blue-600" />,
-      trend: "+12.5%",
+      trend: "Tháng này",
       bgColor: "bg-blue-50"
     },
     {
       title: "Tổng lượt đặt",
       value: data?.summary.totalBookings.toString() || "0",
       icon: <Calendar className="w-5 h-5 text-emerald-600" />,
-      trend: "+8.2%",
+      trend: "Tháng này",
       bgColor: "bg-emerald-50"
     },
     {
@@ -93,13 +95,22 @@ const HomeAdmin: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Quản trị</h1>
-            <p className="text-gray-500 mt-1 font-medium">Theo dõi hiệu quả kinh doanh của khách sạn trong thời gian thực.</p>
+            <p className="text-gray-500 mt-1 font-medium">Theo dõi hiệu quả kinh doanh của khách sạn theo từng tháng.</p>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <input 
+                type="month" 
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="text-sm font-semibold text-gray-700 focus:outline-none bg-transparent cursor-pointer"
+              />
+            </div>
             {data && (
               <PDFDownloadLink 
                 document={<ReportPDF data={data.revenueData} title="Báo cáo Doanh thu Khách sạn" summary={data.summary} />} 
-                fileName="Bao_cao_doanh_thu_luxury.pdf"
+                fileName={`Bao_cao_doanh_thu_${selectedMonth}.pdf`}
                 className="flex items-center gap-2 px-4 py-2 bg-rose-600 rounded-lg text-sm font-semibold text-white hover:bg-rose-700 transition-all shadow-sm shadow-rose-200"
               >
                 {({ loading }) => (loading ? 'Đang tạo PDF...' : <><Download className="w-4 h-4" /> Xuất PDF</>)}
@@ -110,9 +121,6 @@ const HomeAdmin: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
             >
               <Download className="w-4 h-4" /> Xuất Excel
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-lg text-sm font-semibold text-white hover:bg-blue-700 transition-all shadow-sm shadow-blue-200">
-              <Filter className="w-4 h-4" /> Lọc dữ liệu
             </button>
           </div>
         </div>
