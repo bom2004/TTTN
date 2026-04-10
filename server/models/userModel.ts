@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema({
         enum: ['silver', 'gold', 'diamond', 'platinum'], 
         default: 'silver' 
     },
+    isActive: { type: Boolean, default: true },
     salary_base: { type: Number, default: 10000000 },
 }, { timestamps: true });
 

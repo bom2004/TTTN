@@ -7,6 +7,13 @@ export interface StatsData {
     totalBookings: number;
     activePromotions: number;
     totalRooms: number;
+    totalUsers: number;
+  };
+  trends: {
+    revenue: number;
+    bookings: number;
+    users: number;
+    occupancy: number;
   };
 }
 

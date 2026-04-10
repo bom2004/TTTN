@@ -8,6 +8,8 @@ export interface UserData {
     avatar: string;
     totalSpent: number;
     membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
+    isActive?: boolean;
+    createdAt?: string;
 }
 
 

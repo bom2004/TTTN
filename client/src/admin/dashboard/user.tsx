@@ -30,7 +30,7 @@ const UserAdmin: React.FC = () => {
 
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [filterRole, setFilterRole] = useState<string>('');
-    const [filterGenius, setFilterGenius] = useState<string>('');
+    const [filterStatus, setFilterStatus] = useState<string>('');
     const [currentPage, setCurrentPage] = useState<number>(1);
     const ITEMS_PER_PAGE = 10;
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -120,6 +120,21 @@ const UserAdmin: React.FC = () => {
         }
     };
 
+    const handleToggleLock = async (user: UserData): Promise<void> => {
+        try {
+            const currentStatus = user.isActive !== false;
+            const data = new FormData();
+            data.append('userId', user._id || user.id);
+            data.append('isActive', currentStatus ? 'false' : 'true');
+            
+            await dispatch(updateUserThunk(data)).unwrap();
+            toast.success(currentStatus ? "Đã khóa tài khoản thành công" : "Tài khoản đã được mở khóa");
+            dispatch(fetchAllUsersThunk());
+        } catch (error: any) {
+            toast.error(error || "Đã xảy ra lỗi khi đổi trạng thái khóa");
+        }
+    };
+
     const openEditModal = (user: UserData): void => {
         setFormData({
             full_name: user.full_name,
@@ -137,10 +152,39 @@ const UserAdmin: React.FC = () => {
         setIsModalOpen(true);
     };
 
+    const handleExportCSV = (): void => {
+        try {
+            const headers = ["Họ tên", "Email", "Số điện thoại", "Vai trò", "Tổng chi tiêu", "Cấp độ", "Trạng thái", "Ngày tham gia"];
+            const csvRows = filteredUsers.map(u => [
+                u.full_name,
+                u.email,
+                u.phone || "",
+                getRoleLabel(u.role),
+                u.totalSpent || 0,
+                getUserLevel((u as any).totalSpent || 0).label,
+                u.isActive !== false ? "Đang hoạt động" : "Đã khóa",
+                u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : ""
+            ].join(","));
+
+            const csvContent = [headers.join(","), ...csvRows].join("\n");
+            const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `danh_sach_nguoi_dung_${new Date().toISOString().slice(0, 10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success("Đã xuất file CSV thành công");
+        } catch (error) {
+            toast.error("Lỗi khi xuất file");
+        }
+    };
+
     const getRoleLabel = (role: string): string => {
         switch (role) {
             case 'admin': return 'Quản trị viên';
-            case 'hotelOwner': return 'Chủ khách sạn';
             case 'staff': return 'Quản lý';
             case 'receptionist': return 'Lễ tân';
             case 'accountant': return 'Kế toán';
@@ -150,12 +194,11 @@ const UserAdmin: React.FC = () => {
 
     const getRoleColor = (role: string): string => {
         switch (role) {
-            case 'admin': return 'text-purple-600 bg-purple-50';
-            case 'hotelOwner': return 'text-indigo-600 bg-indigo-50';
-            case 'staff': return 'text-emerald-600 bg-emerald-50';
-            case 'receptionist': return 'text-blue-600 bg-blue-50';
-            case 'accountant': return 'text-amber-600 bg-amber-50';
-            default: return 'text-gray-600 bg-gray-50';
+            case 'admin': return 'text-purple-700 bg-purple-50 dark:bg-purple-900/30 dark:text-purple-400';
+            case 'staff': return 'text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400';
+            case 'receptionist': return 'text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400';
+            case 'accountant': return 'text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400';
+            default: return 'text-[#4e5c71] bg-[#e5e9eb] dark:bg-slate-700 dark:text-slate-400';
         }
     };
 
@@ -166,12 +209,34 @@ const UserAdmin: React.FC = () => {
         return { level: 3, label: `Platinum` };
     };
 
+    const getUserStatus = (user: UserData): { status: string; color: string; dotColor: string } => {
+        // Giả định logic - có thể thay đổi dựa trên dữ liệu thực tế
+        const isActive = user.isActive !== false;
+        if (isActive) {
+            return {
+                status: 'Đang hoạt động',
+                color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                dotColor: 'bg-green-600'
+            };
+        }
+        return {
+            status: 'Đã khóa',
+            color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+            dotColor: 'bg-red-600'
+        };
+    };
+
+    const getTotalUsers = () => users.length;
+    const getActiveUsers = () => users.filter(u => u.isActive !== false).length;
+    const getVipUsers = () => users.filter(u => getUserLevel((u as any).totalSpent || 0).level >= 2).length;
+    const getLockedUsers = () => users.filter(u => u.isActive === false).length;
+
     const filteredUsers = users.filter(u => {
         const matchesSearch = u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             u.email.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = filterRole === '' || u.role === filterRole;
         const userLevel = getUserLevel((u as any).totalSpent || 0).level.toString();
-        const matchesGenius = filterGenius === '' || userLevel === filterGenius;
+        const matchesGenius = filterStatus === '' || userLevel === filterStatus;
         return matchesSearch && matchesRole && matchesGenius;
     });
 
@@ -179,189 +244,308 @@ const UserAdmin: React.FC = () => {
     const paginatedUsers = filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
     return (
-        <div className="p-6 bg-gray-50 min-h-screen">
-            {/* Header */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-semibold text-gray-900">Quản lý người dùng</h1>
-                <p className="text-sm text-gray-500 mt-1">Quản lý tất cả tài khoản người dùng và hạng thành viên</p>
-            </div>
+        <div className="p-8 bg-[#f5f7f9] dark:bg-slate-900 min-h-screen">
+            <div className="max-w-[1600px] mx-auto">
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h2 className="text-3xl font-extrabold tracking-tight text-[#2c2f31] dark:text-slate-100 font-['Manrope',sans-serif]">Quản lý người dùng</h2>
+                        <p className="text-[#595c5e] dark:text-slate-400 mt-1 font-['Inter',sans-serif]">Danh sách tất cả người dùng và khách hàng trong hệ thống.</p>
+                    </div>
+                    <button
+                        onClick={() => { setIsEditMode(false); setFormData({ full_name: '', email: '', phone: '', password: '', role: 'customer', totalSpent: '0' }); setAvatarFile(null); setAvatarPreview(null); setIsModalOpen(true); }}
+                        className="bg-gradient-to-r from-[#0050d4] to-[#0046bb] text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#0050d4]/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                    >
+                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+                        Thêm người dùng mới
+                    </button>
+                </div>
 
-            {/* Search and Filters */}
-            <div className="mb-4 flex flex-wrap gap-3 items-center">
-                <div className="flex-1 min-w-[200px]">
-                    <input
-                        type="text"
-                        placeholder="Tìm theo tên hoặc email..."
-                        className="w-full max-w-md px-4 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
-                        value={searchTerm}
-                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                    />
+                {/* Dashboard Overview Bento Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-transparent flex items-center gap-4 shadow-sm">
+                        <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 text-[#0050d4] flex items-center justify-center">
+                            <span className="material-symbols-outlined">person</span>
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-[#595c5e] dark:text-slate-400 uppercase">Tổng người dùng</p>
+                            <p className="text-2xl font-bold text-[#2c2f31] dark:text-slate-100">{getTotalUsers()}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-transparent flex items-center gap-4 shadow-sm">
+                        <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 flex items-center justify-center">
+                            <span className="material-symbols-outlined">how_to_reg</span>
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-[#595c5e] dark:text-slate-400 uppercase">Đang hoạt động</p>
+                            <p className="text-2xl font-bold text-[#2c2f31] dark:text-slate-100">{getActiveUsers()}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-transparent flex items-center gap-4 shadow-sm">
+                        <div className="w-12 h-12 rounded-full bg-[#fe9cf4]/20 dark:bg-[#8e3a8a]/20 text-[#8e3a8a] flex items-center justify-center">
+                            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-[#595c5e] dark:text-slate-400 uppercase">Khách hàng VIP</p>
+                            <p className="text-2xl font-bold text-[#2c2f31] dark:text-slate-100">{getVipUsers()}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-transparent flex items-center gap-4 shadow-sm">
+                        <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 flex items-center justify-center">
+                            <span className="material-symbols-outlined">person_off</span>
+                        </div>
+                        <div>
+                            <p className="text-xs font-semibold text-[#595c5e] dark:text-slate-400 uppercase">Đã khóa</p>
+                            <p className="text-2xl font-bold text-[#2c2f31] dark:text-slate-100">{getLockedUsers()}</p>
+                        </div>
+                    </div>
                 </div>
-                <select
-                    className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:border-gray-400"
-                    value={filterRole}
-                    onChange={(e) => { setFilterRole(e.target.value); setCurrentPage(1); }}
-                >
-                    <option value="">Tất cả vai trò</option>
-                    <option value="customer">Khách hàng</option>
-                    <option value="hotelOwner">Chủ khách sạn</option>
-                    <option value="admin">Quản trị viên</option>
-                    <option value="staff">Quản lý</option>
-                    <option value="receptionist">Lễ tân</option>
-                    <option value="accountant">Kế toán</option>
-                </select>
-                <select
-                    className="px-4 py-2 border border-gray-200 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:border-gray-400"
-                    value={filterGenius}
-                    onChange={(e) => { setFilterGenius(e.target.value); setCurrentPage(1); }}
-                >
-                    <option value="">Mọi cấp độ</option>
-                    <option value="0">Silver</option>
-                    <option value="1">Gold</option>
-                    <option value="2">Diamond</option>
-                    <option value="3">Platinum</option>
-                </select>
-                <button
-                    onClick={() => { setIsEditMode(false); setFormData({ full_name: '', email: '', phone: '', password: '', role: 'customer', totalSpent: '0' }); setAvatarFile(null); setAvatarPreview(null); setIsModalOpen(true); }}
-                    className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition ml-auto"
-                >
-                    + Thêm người dùng
-                </button>
-            </div>
 
-            {/* Table */}
-            {loading ? (
-                <div className="text-center py-12">
-                    <p className="text-gray-400 text-sm">Đang tải...</p>
-                </div>
-            ) : filteredUsers.length === 0 ? (
-                <div className="bg-white rounded-md border border-gray-200 text-center py-12">
-                    <p className="text-gray-400 text-sm">Không tìm thấy người dùng nào</p>
-                </div>
-            ) : (
-                <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Người dùng</th>
-                                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
-                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng chi tiêu</th>
-                                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Cấp độ</th>
-                                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {paginatedUsers.map((user) => {
-                                const levelInfo = getUserLevel((user as any).totalSpent || 0);
-                                return (
-                                    <tr key={user._id || user.id} className="hover:bg-gray-50 transition">
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-sm font-medium overflow-hidden">
-                                                    {user.avatar ? (
-                                                        <img src={user.avatar} className="w-full h-full object-cover" alt="" />
-                                                    ) : (
-                                                        user.full_name.charAt(0).toUpperCase()
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-900">{user.full_name}</p>
-                                                    <p className="text-xs text-gray-400">{user.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
-                                                {getRoleLabel(user.role)}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <p className="font-medium text-emerald-600">{new Intl.NumberFormat('vi-VN').format((user as any).totalSpent || 0)}₫</p>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium 
-                                                ${levelInfo.level === 0 ? 'bg-gray-100 text-gray-600' : 
-                                                  levelInfo.level === 1 ? 'bg-yellow-100 text-yellow-700' : 
-                                                  levelInfo.level === 2 ? 'bg-blue-100 text-blue-700' : 
-                                                  'bg-purple-100 text-purple-700'}`}>
-                                                {levelInfo.label}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="flex gap-2 justify-end">
-                                                <button
-                                                    onClick={() => openEditModal(user)}
-                                                    className="p-1.5 text-gray-400 hover:text-gray-600 transition"
-                                                >
-                                                    <span className="material-symbols-outlined text-[18px]">edit</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => { setDeleteTargetId(user._id || user.id); setDeleteTargetName(user.full_name); }}
-                                                    className="p-1.5 text-gray-400 hover:text-rose-600 transition"
-                                                >
-                                                    <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                </button>
-                                            </div>
-                                        </td>
+                {/* Table & Filters Section */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-transparent overflow-hidden shadow-sm">
+                    {/* Toolbar */}
+                    <div className="p-6 border-b border-[#e5e9eb] dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        {/* Search Input */}
+                        <div className="relative w-full md:max-w-md">
+                            <input
+                                type="text"
+                                placeholder="Tìm tên hoặc email người dùng..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                className="w-full pl-11 pr-4 py-2 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium focus:outline-none focus:border-[#0050d4] transition-all text-[#2c2f31] dark:text-slate-100 placeholder-[#abadaf]"
+                            />
+                            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#abadaf] text-[20px]">search</span>
+                        </div>
+
+                        {/* Filters & Actions */}
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            {/* Role Filter */}
+                            <div className="relative flex-1 md:flex-none">
+                                <select
+                                    value={filterRole}
+                                    onChange={(e) => { setFilterRole(e.target.value); setCurrentPage(1); }}
+                                    className="w-full appearance-none pl-10 pr-10 py-2 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-200 focus:ring-2 focus:ring-[#0050d4]/20 cursor-pointer transition-all"
+                                >
+                                    <option value="">Vai trò: Tất cả</option>
+                                    <option value="customer">Khách hàng</option>
+                                    <option value="admin">Quản trị viên</option>
+                                    <option value="staff">Quản lý</option>
+                                    <option value="receptionist">Lễ tân</option>
+                                    <option value="accountant">Kế toán</option>
+                                </select>
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">admin_panel_settings</span>
+                                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">expand_more</span>
+                            </div>
+
+                            {/* Level Filter */}
+                            <div className="relative flex-1 md:flex-none">
+                                <select
+                                    value={filterStatus}
+                                    onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                                    className="w-full appearance-none pl-10 pr-10 py-2 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-200 focus:ring-2 focus:ring-[#0050d4]/20 cursor-pointer transition-all"
+                                >
+                                    <option value="">Cấp độ: Tất cả</option>
+                                    <option value="0">Cấp độ: Silver</option>
+                                    <option value="1">Cấp độ: Gold</option>
+                                    <option value="2">Cấp độ: Diamond</option>
+                                    <option value="3">Cấp độ: Platinum</option>
+                                </select>
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">filter_list</span>
+                                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">expand_more</span>
+                            </div>
+
+                            {/* Export Data */}
+                            <button 
+                                onClick={handleExportCSV}
+                                title="Xuất dữ liệu CSV" 
+                                className="w-10 h-10 flex items-center justify-center border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl hover:bg-[#eef1f3] dark:hover:bg-slate-700 text-[#4e5c71] dark:text-slate-400 transition-all shadow-sm active:scale-90"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">download</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Table Content */}
+                    {loading ? (
+                        <div className="text-center py-16">
+                            <div className="animate-pulse flex flex-col items-center">
+                                <div className="w-12 h-12 bg-[#e5e9eb] dark:bg-slate-700 rounded-full mb-4"></div>
+                                <p className="text-[#747779] dark:text-slate-400 text-sm font-medium">Đang tải dữ liệu...</p>
+                            </div>
+                        </div>
+                    ) : filteredUsers.length === 0 ? (
+                        <div className="text-center py-16">
+                            <span className="material-symbols-outlined text-5xl text-[#abadaf] dark:text-slate-500 mb-3">person_off</span>
+                            <p className="text-[#747779] dark:text-slate-400 text-sm font-medium">Không tìm thấy người dùng nào</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-[#eef1f3]/50 dark:bg-slate-900/50">
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider font-['Manrope',sans-serif]">Họ tên</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider font-['Manrope',sans-serif]">Email</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider font-['Manrope',sans-serif]">Số điện thoại</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider font-['Manrope',sans-serif]">Vai trò</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider font-['Manrope',sans-serif]">Chi tiêu</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider font-['Manrope',sans-serif]">Cấp độ</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider font-['Manrope',sans-serif]">Ngày tham gia</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider font-['Manrope',sans-serif]">Trạng thái</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#595c5e] dark:text-slate-400 uppercase tracking-wider text-right font-['Manrope',sans-serif]">Hành động</th>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                                </thead>
+                                <tbody className="divide-y divide-[#e5e9eb] dark:divide-slate-700">
+                                    {paginatedUsers.map((user) => {
+                                        const levelInfo = getUserLevel((user as any).totalSpent || 0);
+                                        const statusInfo = getUserStatus(user);
+                                        return (
+                                            <tr key={user._id || user.id} className="hover:bg-[#f5f7f9] dark:hover:bg-slate-900/50 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-full bg-[#e5e9eb] dark:bg-slate-700 overflow-hidden">
+                                                            {user.avatar ? (
+                                                                <img src={user.avatar} className="w-full h-full object-cover" alt="" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-[#595c5e] dark:text-slate-400 font-bold">
+                                                                    {user.full_name.charAt(0).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-[#2c2f31] dark:text-slate-100">{user.full_name}</p>
+                                                            <p className="text-xs text-[#747779] dark:text-slate-400">{levelInfo.label === 'Platinum' ? 'Khách hàng VIP' : (user.role === 'customer' ? 'Khách hàng' : getRoleLabel(user.role))}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-[#4e5c71] dark:text-slate-400 font-medium">{user.email}</td>
+                                                <td className="px-6 py-4 text-sm text-[#4e5c71] dark:text-slate-400">{user.phone || '—'}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${getRoleColor(user.role)}`}>
+                                                        {getRoleLabel(user.role)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm font-bold text-[#0050d4] dark:text-[#7b9cff] font-['Inter',sans-serif]">
+                                                        {new Intl.NumberFormat('vi-VN').format((user as any).totalSpent || 0)}₫
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold 
+                                                        ${levelInfo.level === 0 ? 'bg-[#e5e9eb] text-[#4e5c71] dark:bg-slate-700 dark:text-slate-400' :
+                                                            levelInfo.level === 1 ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                                levelInfo.level === 2 ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                                    'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'}`}>
+                                                        {levelInfo.label}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-[#4e5c71] dark:text-slate-400 font-medium">
+                                                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : '—'}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusInfo.color}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotColor}`}></span>
+                                                        {statusInfo.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex gap-1 justify-end">
+                                                        <button
+                                                            onClick={() => handleToggleLock(user)}
+                                                            className={`p-2 rounded-lg transition-all ${user.isActive !== false ? 'hover:bg-amber-50 text-[#747779] hover:text-amber-600 dark:hover:bg-amber-900/20' : 'hover:bg-green-50 text-[#747779] hover:text-green-600 dark:hover:bg-green-900/20'}`}
+                                                            title={user.isActive !== false ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                                                        >
+                                                            <span className="material-symbols-outlined text-xl">{user.isActive !== false ? "lock" : "lock_open"}</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => openEditModal(user)}
+                                                            className="p-2 hover:bg-[#eef1f3] dark:hover:bg-slate-700 rounded-lg text-[#747779] hover:text-[#0050d4] transition-all"
+                                                        >
+                                                            <span className="material-symbols-outlined text-xl">edit</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setDeleteTargetId(user._id || user.id); setDeleteTargetName(user.full_name); }}
+                                                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-[#747779] hover:text-red-600 transition-all"
+                                                        >
+                                                            <span className="material-symbols-outlined text-xl">delete</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
 
-            {/* Pagination */}
-            {filteredUsers.length > 0 && (
-                <div className="mt-4">
-                    <Pagination
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        totalItems={filteredUsers.length}
-                        itemsPerPage={ITEMS_PER_PAGE}
-                        onPageChange={setCurrentPage}
-                    />
+                    {/* Pagination */}
+                    {filteredUsers.length > 0 && (
+                        <div className="px-6 py-4 border-t border-[#e5e9eb] dark:border-slate-700 flex items-center justify-between">
+                            <p className="text-xs font-medium text-[#747779] dark:text-slate-400">
+                                Hiển thị <span className="text-[#2c2f31] dark:text-slate-100">{paginatedUsers.length}</span> trên <span className="text-[#2c2f31] dark:text-slate-100">{filteredUsers.length}</span> người dùng
+                            </p>
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                totalItems={filteredUsers.length}
+                                itemsPerPage={ITEMS_PER_PAGE}
+                                onPageChange={setCurrentPage}
+                            />
+                        </div>
+                    )}
                 </div>
-            )}
+
+                {/* Recent Activity / Bento Item */}
+                <div className="mt-8 bg-[#eef1f3]/50 dark:bg-slate-800/50 p-8 rounded-2xl border border-dashed border-[#d9dde0] dark:border-slate-700 flex flex-col items-center justify-center text-center gap-3">
+                    <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center text-[#0050d4]">
+                        <span className="material-symbols-outlined text-3xl">insights</span>
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-[#2c2f31] dark:text-slate-100 font-['Manrope',sans-serif]">Phân tích hành vi người dùng</h3>
+                        <p className="text-sm text-[#4e5c71] dark:text-slate-400 max-w-md mx-auto">Sử dụng dữ liệu để cải thiện dịch vụ và tăng tỷ lệ khách hàng quay lại. Xem báo cáo chi tiết tại mục Thống kê.</p>
+                    </div>
+                    <button className="mt-2 text-sm font-bold text-[#0050d4] hover:underline">Xem báo cáo chi tiết →</button>
+                </div>
+            </div>
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="bg-white w-full max-w-md rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-[#e5e9eb] dark:border-slate-700 rounded-t-2xl px-6 py-5 flex justify-between items-center">
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-900">
+                                <h2 className="text-xl font-extrabold text-[#2c2f31] dark:text-slate-100 font-['Manrope',sans-serif]">
                                     {isEditMode ? 'Cập nhật người dùng' : 'Thêm người dùng mới'}
                                 </h2>
-                                <p className="text-xs text-gray-400 mt-0.5">Thông tin tài khoản</p>
+                                <p className="text-xs text-[#747779] dark:text-slate-400 mt-0.5 font-medium">Thông tin tài khoản</p>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                            <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 flex items-center justify-center text-[#747779] hover:text-[#2c2f31] dark:hover:text-slate-200 hover:bg-[#eef1f3] dark:hover:bg-slate-700 rounded-lg transition-all text-2xl">&times;</button>
                         </div>
 
-                        <form onSubmit={handleInvite} className="p-6 space-y-4">
+                        <form onSubmit={handleInvite} className="p-6 space-y-5">
                             {/* Avatar */}
-                            <div className="flex flex-col items-center gap-2">
+                            <div className="flex flex-col items-center gap-3">
                                 <div className="relative">
-                                    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl overflow-hidden">
+                                    <div className="w-24 h-24 rounded-2xl bg-[#eef1f3] dark:bg-slate-700 flex items-center justify-center text-[#abadaf] dark:text-slate-500 overflow-hidden">
                                         {avatarPreview ? (
                                             <img src={avatarPreview} className="w-full h-full object-cover" alt="Avatar" />
                                         ) : (
-                                            <span className="material-symbols-outlined text-3xl">person</span>
+                                            <span className="material-symbols-outlined text-4xl">person</span>
                                         )}
                                     </div>
-                                    <label className="absolute bottom-0 right-0 w-7 h-7 bg-gray-900 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-800 transition">
-                                        <span className="material-symbols-outlined text-white text-[14px]">photo_camera</span>
+                                    <label className="absolute -bottom-2 -right-2 w-8 h-8 bg-gradient-to-r from-[#0050d4] to-[#0046bb] rounded-full flex items-center justify-center cursor-pointer hover:shadow-lg transition-all shadow-md">
+                                        <span className="material-symbols-outlined text-white text-sm">photo_camera</span>
                                         <input type="file" className="hidden" accept="image/*" onChange={handleAvatarChange} />
                                     </label>
                                 </div>
-                                <p className="text-[10px] text-gray-400">Ảnh đại diện (tùy chọn)</p>
+                                <p className="text-[10px] font-medium text-[#747779] dark:text-slate-400">Ảnh đại diện (tùy chọn)</p>
                             </div>
 
                             {/* Form fields */}
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Họ và tên *</label>
+                                <label className="block text-xs font-bold text-[#595c5e] dark:text-slate-400 mb-1.5 uppercase tracking-wide">Họ và tên *</label>
                                 <input
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                    className="w-full px-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:border-[#0050d4] transition-all"
                                     placeholder="Nguyễn Văn A"
                                     required
                                     value={formData.full_name}
@@ -370,9 +554,9 @@ const UserAdmin: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Email *</label>
+                                <label className="block text-xs font-bold text-[#595c5e] dark:text-slate-400 mb-1.5 uppercase tracking-wide">Email *</label>
                                 <input
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                    className="w-full px-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:border-[#0050d4] transition-all"
                                     placeholder="example@gmail.com"
                                     type="email"
                                     required
@@ -381,25 +565,24 @@ const UserAdmin: React.FC = () => {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Số điện thoại</label>
+                                    <label className="block text-xs font-bold text-[#595c5e] dark:text-slate-400 mb-1.5 uppercase tracking-wide">Số điện thoại</label>
                                     <input
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        className="w-full px-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:border-[#0050d4] transition-all"
                                         placeholder="0123456789"
                                         value={formData.phone}
                                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Vai trò</label>
+                                    <label className="block text-xs font-bold text-[#595c5e] dark:text-slate-400 mb-1.5 uppercase tracking-wide">Vai trò</label>
                                     <select
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:border-gray-400"
+                                        className="w-full px-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:border-[#0050d4] transition-all cursor-pointer"
                                         value={formData.role}
                                         onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                                     >
                                         <option value="customer">Khách hàng</option>
-                                        <option value="hotelOwner">Chủ khách sạn</option>
                                         <option value="staff">Quản lý</option>
                                         <option value="receptionist">Lễ tân</option>
                                         <option value="accountant">Kế toán</option>
@@ -409,9 +592,9 @@ const UserAdmin: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Tổng chi tiêu (VNĐ)</label>
+                                <label className="block text-xs font-bold text-[#595c5e] dark:text-slate-400 mb-1.5 uppercase tracking-wide">Tổng chi tiêu (VNĐ)</label>
                                 <input
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                    className="w-full px-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:border-[#0050d4] transition-all"
                                     type="number"
                                     value={formData.totalSpent}
                                     onChange={(e) => setFormData({ ...formData, totalSpent: e.target.value })}
@@ -420,21 +603,21 @@ const UserAdmin: React.FC = () => {
 
                             {!isEditMode ? (
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Mật khẩu *</label>
+                                    <label className="block text-xs font-bold text-[#595c5e] dark:text-slate-400 mb-1.5 uppercase tracking-wide">Mật khẩu *</label>
                                     <input
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        className="w-full px-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:border-[#0050d4] transition-all"
                                         placeholder="••••••••"
                                         type="password"
-                                        required
+                                        required={!isEditMode}
                                         value={formData.password}
                                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                     />
                                 </div>
                             ) : (
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Mật khẩu mới</label>
+                                    <label className="block text-xs font-bold text-[#595c5e] dark:text-slate-400 mb-1.5 uppercase tracking-wide">Mật khẩu mới</label>
                                     <input
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        className="w-full px-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:border-[#0050d4] transition-all"
                                         placeholder="Để trống nếu không đổi"
                                         type="password"
                                         value={newPassword}
@@ -443,7 +626,7 @@ const UserAdmin: React.FC = () => {
                                 </div>
                             )}
 
-                            <button className="w-full mt-2 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition">
+                            <button className="w-full mt-4 py-3 bg-gradient-to-r from-[#0050d4] to-[#0046bb] text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all active:scale-95 shadow-md">
                                 {isEditMode ? 'Cập nhật' : 'Tạo tài khoản'}
                             </button>
                         </form>

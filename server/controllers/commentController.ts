@@ -68,6 +68,8 @@ export const replyComment = async (req: Request, res: Response): Promise<void> =
         }
 
         const updated = await updateCommentReply(commentId, replyContent);
+        await updated.populate('userId', 'full_name avatar email');
+        await updated.populate('roomTypeId', 'name');
         res.json({ success: true, message: "Phản hồi thành công.", data: updated });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -85,8 +87,10 @@ export const deleteComment = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
-        await removeComment(commentId);
-        res.json({ success: true, message: "Xóa bình luận thành công." });
+        const updated = await removeComment(commentId);
+        await updated.populate('userId', 'full_name avatar email');
+        await updated.populate('roomTypeId', 'name');
+        res.json({ success: true, message: "Cập nhật trạng thái thành công.", data: updated });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }

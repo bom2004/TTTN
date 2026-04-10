@@ -15,7 +15,6 @@ interface CreateBookingProps {
 const CreateBooking: React.FC<CreateBookingProps> = ({ isOpen, onClose, roomTypes, onSuccess }) => {
     const dispatch = useAppDispatch();
     const customers = useAppSelector(selectCustomers);
-    const [showCustomerList, setShowCustomerList] = useState(false);
     const [bookingForm, setBookingForm] = useState({
         customerId: '',
         customerName: '',
@@ -37,12 +36,6 @@ const CreateBooking: React.FC<CreateBookingProps> = ({ isOpen, onClose, roomType
         }
     }, [isOpen, dispatch]);
 
-    const filteredCustomers = (customers || []).filter(c => {
-        const searchName = (bookingForm.customerName || '').toLowerCase();
-        const userName = (c.full_name || '').toLowerCase();
-        const userPhone = (c.phone || '');
-        return userName.includes(searchName) || userPhone.includes(searchName);
-    });
 
     const handleSelectCustomer = (customer: any) => {
         setBookingForm({
@@ -52,7 +45,6 @@ const CreateBooking: React.FC<CreateBookingProps> = ({ isOpen, onClose, roomType
             customerEmail: customer.email || '',
             customerPhone: customer.phone || ''
         });
-        setShowCustomerList(false);
     };
 
     if (!isOpen) return null;
@@ -81,7 +73,7 @@ const CreateBooking: React.FC<CreateBookingProps> = ({ isOpen, onClose, roomType
 
         try {
             await dispatch(createBookingThunk(data)).unwrap();
-            toast.success("Tạo đặt phòng thành công");
+            toast.success("Tạo đặt phòng trực tiếp thành công");
             onClose();
             setBookingForm({
                 customerId: '',
@@ -99,203 +91,314 @@ const CreateBooking: React.FC<CreateBookingProps> = ({ isOpen, onClose, roomType
             });
             onSuccess();
         } catch (error: any) {
-            toast.error(error || "Tạo đặt phòng thất bại");
+            toast.error(error || "Không thể tạo đơn đặt phòng");
         }
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-            <div className="bg-white w-full max-w-2xl rounded-lg shadow-xl my-auto animate-in fade-in zoom-in duration-300">
-                <div className="border-b px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-lg">
-                    <div className="text-left">
-                        <h2 className="text-lg font-semibold text-gray-900">Tạo đơn đặt phòng mới</h2>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Đặt phòng thủ công cho khách hàng</p>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-[#f8fafc] dark:bg-slate-800 w-full max-w-2xl rounded-[32px] shadow-2xl border border-white/20 overflow-hidden animate-in fade-in zoom-in duration-300 my-auto">
+                <div className="bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 px-8 py-6 flex justify-between items-center text-left">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <span className="material-symbols-outlined text-2xl">add_shopping_cart</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black text-[#2c2f31] dark:text-slate-100 font-['Manrope',sans-serif]">Tạo đơn mới tại quầy</h2>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Tiếp nhận yêu cầu trực tiếp từ khách hàng</p>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                    <button 
+                        onClick={onClose} 
+                        className="w-10 h-10 flex items-center justify-center bg-slate-50 dark:bg-slate-700 text-slate-400 hover:text-slate-600 rounded-full transition-all"
+                    >
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
                 </div>
 
-                <form onSubmit={handleCreateBooking} className="p-6 space-y-5 text-left">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="space-y-1 relative">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tên khách hàng</label>
-                            <div className="relative">
-                                <input
-                                    required
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                    placeholder="Vd: Nguyễn Văn A"
-                                    value={bookingForm.customerName}
-                                    onFocus={() => setShowCustomerList(true)}
-                                    onBlur={() => setTimeout(() => setShowCustomerList(false), 200)}
-                                    onChange={(e) => {
-                                        setBookingForm({ ...bookingForm, customerName: e.target.value });
-                                        setShowCustomerList(true);
-                                    }}
-                                />
-                                {showCustomerList && filteredCustomers.length > 0 && (
-                                    <div className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                                        {filteredCustomers.map((c: any) => (
-                                            <div
-                                                key={c._id || c.id}
-                                                className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 transition-colors"
-                                                onClick={() => handleSelectCustomer(c)}
-                                            >
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-bold text-gray-900 text-sm">{c.full_name}</span>
-                                                    <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">
-                                                        Khách cũ
-                                                    </span>
-                                                </div>
-                                                <div className="flex gap-4 mt-1 text-[11px] text-gray-500 font-medium">
-                                                    <span className="flex items-center gap-1">
-                                                        <span className="material-symbols-outlined text-[14px]">phone</span>
-                                                        {c.phone}
-                                                    </span>
-                                                    <span className="flex items-center gap-1">
-                                                        <span className="material-symbols-outlined text-[14px]">mail</span>
-                                                        {c.email}
-                                                    </span>
-                                                </div>
-                                            </div>
+                <form onSubmit={handleCreateBooking} className="p-8 space-y-6 text-left">
+                    {/* Section 1: Customer */}
+                    <div className="space-y-4">
+                        <h3 className="text-[11px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                             <span className="w-4 h-[2px] bg-blue-500 rounded-full"></span>
+                             Thông tin khách hàng
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <div className="md:col-span-2 relative">
+                                <label className="text-[10px] font-black text-blue-500 block mb-1.5 ml-1 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-[14px]">account_circle</span>
+                                    CHỌN KHÁCH HÀNG CÓ SẴN (NẾU CÓ)
+                                </label>
+                                <div className="relative">
+                                    <select
+                                        className="w-full appearance-none px-4 py-2.5 pl-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 transition-all cursor-pointer"
+                                        onChange={(e) => {
+                                            const selectedId = e.target.value;
+                                            if (selectedId === "") return;
+                                            const customer = customers.find(c => (c._id || c.id) === selectedId);
+                                            if (customer) handleSelectCustomer(customer);
+                                        }}
+                                        value={bookingForm.customerId}
+                                    >
+                                        <option value="">-- Chọn khách hàng từ danh sách --</option>
+                                        {(customers || []).map((c: any) => (
+                                            <option key={c._id || c.id} value={c._id || c.id}>
+                                                {c.full_name} ({c.phone || 'N/A'})
+                                            </option>
                                         ))}
-                                    </div>
-                                )}
+                                    </select>
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                            
+                            <div className="md:col-span-2 flex items-center gap-4 my-2">
+                                <div className="flex-1 h-[1px] bg-slate-200 dark:bg-slate-700"></div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">HOẶC NHẬP THÔNG TIN MỚI</span>
+                                <div className="flex-1 h-[1px] bg-slate-200 dark:bg-slate-700"></div>
+                            </div>
+
+                            <div className="relative">
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1">TÊN KHÁCH HÀNG *</label>
+                                <div className="relative">
+                                    <input
+                                        required
+                                        className="w-full px-4 py-2.5 pl-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:border-blue-500 outline-none transition-all dark:text-slate-100"
+                                        placeholder="Nguyễn Văn A..."
+                                        value={bookingForm.customerName}
+                                        onChange={(e) => {
+                                            setBookingForm({ ...bookingForm, customerName: e.target.value, customerId: '' });
+                                        }}
+                                    />
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">person</span>
+                                </div>
+                                {(() => {
+                                    if (!bookingForm.customerName || bookingForm.customerName.length < 1) return null;
+                                    const nameMatches = (customers || []).filter(c => 
+                                        c.full_name?.toLowerCase().includes(bookingForm.customerName.toLowerCase())
+                                    ).slice(0, 3);
+                                    
+                                    if (nameMatches.length > 0 && !nameMatches.some(m => (m._id || m.id) === bookingForm.customerId)) {
+                                        return (
+                                            <div className="mt-2 space-y-2 animate-in slide-in-from-top-2 duration-300">
+                                                <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest ml-1">Gợi ý từ tên ({nameMatches.length})</p>
+                                                {nameMatches.map(matched => (
+                                                    <div key={matched._id || matched.id} className="p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl flex items-center justify-between group hover:bg-indigo-100 transition-all">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-600 shadow-sm">
+                                                                <span className="material-symbols-outlined text-sm">person</span>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-700 dark:text-slate-200">{matched.full_name}</p>
+                                                                <p className="text-[10px] font-bold text-slate-400">{matched.phone}</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSelectCustomer(matched)}
+                                                            className="px-3 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-lg uppercase tracking-wider hover:scale-105 transition-all"
+                                                        >
+                                                            Chọn
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1 uppercase">Số điện thoại liên hệ *</label>
+                                <div className="relative">
+                                    <input
+                                        required
+                                        className="w-full px-4 py-2.5 pl-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:border-blue-500 outline-none transition-all dark:text-slate-100"
+                                        placeholder="09xx xxx xxx"
+                                        value={bookingForm.customerPhone}
+                                        onChange={(e) => setBookingForm({ ...bookingForm, customerPhone: e.target.value })}
+                                    />
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">call</span>
+                                </div>
+                                {(() => {
+                                    if (!bookingForm.customerPhone) return null;
+                                    const matches = (customers || []).filter(c => 
+                                        c.phone?.toString().trim().startsWith(bookingForm.customerPhone.trim())
+                                    ).slice(0, 3); // Show top 3 matches
+                                    
+                                    if (matches.length > 0 && !matches.some(m => (m._id || m.id) === bookingForm.customerId)) {
+                                        return (
+                                            <div className="mt-2 space-y-2 animate-in slide-in-from-top-2 duration-300">
+                                                <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-1">Gợi ý khách hàng ({matches.length})</p>
+                                                {matches.map(matched => (
+                                                    <div key={matched._id || matched.id} className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-xl flex items-center justify-between group hover:bg-blue-100 transition-all">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-blue-600 shadow-sm">
+                                                                <span className="material-symbols-outlined text-sm">person</span>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-700 dark:text-slate-200">{matched.full_name}</p>
+                                                                <p className="text-[10px] font-bold text-slate-400">{matched.phone}</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSelectCustomer(matched)}
+                                                            className="px-3 py-1 bg-[#2c2f31] dark:bg-white text-white dark:text-slate-900 text-[9px] font-black rounded-lg uppercase tracking-wider hover:scale-105 transition-all"
+                                                        >
+                                                            Chọn
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1 uppercase">Địa chỉ Email</label>
+                                <div className="relative">
+                                    <input
+                                        required
+                                        type="email"
+                                        className="w-full px-4 py-2.5 pl-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:border-blue-500 outline-none transition-all dark:text-slate-100"
+                                        placeholder="customer@domain.com"
+                                        value={bookingForm.customerEmail}
+                                        onChange={(e) => setBookingForm({ ...bookingForm, customerEmail: e.target.value })}
+                                    />
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">mail</span>
+                                </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Số điện thoại</label>
-                            <input
-                                required
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                placeholder="Vd: 0987654321"
-                                value={bookingForm.customerPhone}
-                                onChange={(e) => setBookingForm({ ...bookingForm, customerPhone: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Email</label>
-                            <input
-                                required
-                                type="email"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                placeholder="Vd: khach@gmail.com"
-                                value={bookingForm.customerEmail}
-                                onChange={(e) => setBookingForm({ ...bookingForm, customerEmail: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Loại phòng</label>
-                            <select
-                                required
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                value={bookingForm.roomTypeId}
-                                onChange={(e) => setBookingForm({ ...bookingForm, roomTypeId: e.target.value })}
-                            >
-                                <option value="">-- Chọn loại phòng --</option>
-                                {roomTypes.map((rt: any) => (
-                                    <option key={rt._id || rt.id} value={rt._id || rt.id}>
-                                        {rt.name} - {new Intl.NumberFormat('vi-VN').format(rt.basePrice)}₫/ngày
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Ngày nhận phòng</label>
-                            <input
-                                type="date"
-                                required
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                value={bookingForm.checkInDate}
-                                onChange={(e) => setBookingForm({ ...bookingForm, checkInDate: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Ngày trả phòng</label>
-                            <input
-                                type="date"
-                                required
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                value={bookingForm.checkOutDate}
-                                onChange={(e) => setBookingForm({ ...bookingForm, checkOutDate: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Số lượng phòng</label>
-                            <input
-                                type="number"
-                                min="1"
-                                required
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                value={bookingForm.roomQuantity}
-                                onChange={(e) => setBookingForm({ ...bookingForm, roomQuantity: parseInt(e.target.value) })}
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hình thức thanh toán</label>
-                            <select
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                value={bookingForm.paymentMethod}
-                                onChange={(e: any) => setBookingForm({ ...bookingForm, paymentMethod: e.target.value })}
-                            >
-                                <option value="cash">💵 Tiền mặt</option>
-                                <option value="vnpay">💳 Chuyển khoản (VNPay)</option>
-                            </select>
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Trạng thái thanh toán</label>
-                            <select
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                value={bookingForm.paymentStatus}
-                                onChange={(e: any) => setBookingForm({ ...bookingForm, paymentStatus: e.target.value })}
-                            >
-                                <option value="unpaid">Chưa thanh toán</option>
-                                <option value="deposited">Đã đặt cọc</option>
-                            </select>
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Giờ nhận phòng dự kiến</label>
-                            <input
-                                type="text"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                                placeholder="Vd: 14:00"
-                                value={bookingForm.checkInTime}
-                                onChange={(e) => setBookingForm({ ...bookingForm, checkInTime: e.target.value })}
-                            />
+                    {/* Section 2: Stay & Room */}
+                    <div className="space-y-4">
+                        <h3 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2">
+                             <span className="w-4 h-[2px] bg-indigo-500 rounded-full"></span>
+                             Chi tiết đặt phòng
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1">LỰA CHỌN LOẠI PHÒNG</label>
+                                <div className="relative">
+                                    <select
+                                        required
+                                        className="w-full appearance-none px-4 py-2.5 pl-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 transition-all cursor-pointer"
+                                        value={bookingForm.roomTypeId}
+                                        onChange={(e) => setBookingForm({ ...bookingForm, roomTypeId: e.target.value })}
+                                    >
+                                        <option value="">Chọn một hạng phòng...</option>
+                                        {roomTypes.map((rt: any) => (
+                                            <option key={rt._id || rt.id} value={rt._id || rt.id}>
+                                                {rt.name} — {new Intl.NumberFormat('vi-VN').format(rt.basePrice)}₫/ngày
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">hotel</span>
+                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1">NGÀY CHECK-IN</label>
+                                <input
+                                    type="date"
+                                    required
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-slate-100"
+                                    value={bookingForm.checkInDate}
+                                    onChange={(e) => setBookingForm({ ...bookingForm, checkInDate: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1">NGÀY CHECK-OUT</label>
+                                <input
+                                    type="date"
+                                    required
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-slate-100"
+                                    value={bookingForm.checkOutDate}
+                                    onChange={(e) => setBookingForm({ ...bookingForm, checkOutDate: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1">SỐ LƯỢNG PHÒNG</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    required
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-slate-100"
+                                    value={bookingForm.roomQuantity}
+                                    onChange={(e) => setBookingForm({ ...bookingForm, roomQuantity: parseInt(e.target.value) })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1">GIỜ NHẬN DỰ KIẾN</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-slate-100 placeholder-slate-300"
+                                    placeholder="Vd: 14:00"
+                                    value={bookingForm.checkInTime}
+                                    onChange={(e) => setBookingForm({ ...bookingForm, checkInTime: e.target.value })}
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Yêu cầu đặc biệt</label>
-                        <textarea
-                            rows={2}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all resize-none"
-                            placeholder="Ghi chú thêm từ khách hàng..."
-                            value={bookingForm.specialRequests}
-                            onChange={(e) => setBookingForm({ ...bookingForm, specialRequests: e.target.value })}
-                        />
+                    {/* Section 3: Finance */}
+                    <div className="space-y-4">
+                         <h3 className="text-[11px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                             <span className="w-4 h-[2px] bg-emerald-500 rounded-full"></span>
+                             Thanh toán & Ghi chú
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1 uppercase">Hình thức đóng phí</label>
+                                <select
+                                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold"
+                                    value={bookingForm.paymentMethod}
+                                    onChange={(e: any) => setBookingForm({ ...bookingForm, paymentMethod: e.target.value })}
+                                >
+                                    <option value="cash">💵 Tiền mặt tại quầy</option>
+                                    <option value="vnpay">💳 Thẻ / Chuyển khoản (VNPay)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1 uppercase">Trạng thái ban đầu</label>
+                                <select
+                                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold"
+                                    value={bookingForm.paymentStatus}
+                                    onChange={(e: any) => setBookingForm({ ...bookingForm, paymentStatus: e.target.value })}
+                                >
+                                    <option value="unpaid">Yêu cầu thanh toán sau</option>
+                                    <option value="deposited">Khách đã đặt cọc</option>
+                                </select>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-black text-slate-400 block mb-1.5 ml-1 uppercase">Ghi chú yêu cầu đặc biệt</label>
+                                <textarea
+                                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium italic resize-none"
+                                    placeholder="Khách cần thêm gối, check-in sớm, v.v..."
+                                    rows={2}
+                                    value={bookingForm.specialRequests}
+                                    onChange={(e) => setBookingForm({ ...bookingForm, specialRequests: e.target.value })}
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="pt-4 border-t flex gap-3 justify-end">
+                    <div className="pt-6 border-t border-slate-100 dark:border-slate-700 flex flex-col md:flex-row gap-3 justify-end items-center">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all active:scale-95"
+                            className="w-full md:w-auto px-8 py-2.5 text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-slate-600 transition-colors"
                         >
-                            Hủy
+                            Hủy bỏ
                         </button>
                         <button
                             type="submit"
-                            className="px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                            className="w-full md:w-auto px-10 py-3 bg-[#2c2f31] dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-[0.2em] rounded-xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
                         >
-                            Xác nhận tạo đơn
+                            Xác nhận khởi tạo đơn
                         </button>
                     </div>
                 </form>

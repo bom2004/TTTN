@@ -1,3 +1,4 @@
+import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
 // Register font for Vietnamese characters
@@ -104,8 +105,8 @@ const ReportPDF = ({ data, title, summary }: ReportPDFProps) => (
           <Text>Ngày xuất: {new Date().toLocaleDateString('vi-VN')}</Text>
         </View>
         <View>
-          <Text>Tổng doanh thu: {new Intl.NumberFormat('vi-VN').format(summary.totalRevenue)}đ</Text>
-          <Text>Tổng đơn đặt: {summary.totalBookings}</Text>
+          <Text>Tổng doanh thu: {new Intl.NumberFormat('vi-VN').format(summary?.totalRevenue || 0)}đ</Text>
+          <Text>Tổng đơn đặt: {summary?.totalBookings || 0}</Text>
         </View>
       </View>
 
@@ -119,20 +120,20 @@ const ReportPDF = ({ data, title, summary }: ReportPDFProps) => (
         </View>
 
         {/* Table Rows */}
-        {data.map((row, index) => (
+        {(data || []).map((row, index) => (
           <View style={styles.tableRow} key={index}>
             <View style={styles.tableCol}><Text style={styles.tableCell}>{row.name}</Text></View>
-            <View style={styles.tableCol}><Text style={styles.tableCell}>{new Intl.NumberFormat('vi-VN').format(row.revenue)}đ</Text></View>
-            <View style={styles.tableCol}><Text style={styles.tableCell}>{row.bookings}</Text></View>
+            <View style={styles.tableCol}><Text style={styles.tableCell}>{new Intl.NumberFormat('vi-VN').format(row.revenue || 0)}đ</Text></View>
+            <View style={styles.tableCol}><Text style={styles.tableCell}>{row.bookings || 0}</Text></View>
             <View style={styles.tableCol}><Text style={styles.tableCell}>
-              {row.bookings > 0 ? new Intl.NumberFormat('vi-VN').format(row.revenue / row.bookings) : 0}đ
+              {row.bookings && row.bookings > 0 ? new Intl.NumberFormat('vi-VN').format((row.revenue || 0) / row.bookings) : 0}đ
             </Text></View>
           </View>
         ))}
       </View>
 
       <View style={styles.footer}>
-        <Text style={{marginTop: 10, fontSize: 10, fontStyle: 'italic'}}>Ký tên xác nhận</Text>
+        <Text style={{marginTop: 10, fontSize: 10, color: '#666666'}}>Ký tên xác nhận</Text>
       </View>
     </Page>
   </Document>

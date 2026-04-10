@@ -10,6 +10,8 @@ export interface User {
     avatar: string;
     totalSpent: number;
     membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
+    isActive?: boolean;
+    createdAt?: string;
 }
 
 export interface UserState {

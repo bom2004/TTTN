@@ -40,8 +40,10 @@ const RoomTypeAdmin: React.FC = () => {
 
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('All');
+    const [filterRoomName, setFilterRoomName] = useState<string>('All');
     const [currentPage, setCurrentPage] = useState<number>(1);
-    const ITEMS_PER_PAGE = 5;
+    const ITEMS_PER_PAGE = 10;
+
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isEditMode, setIsEditMode] = useState<boolean>(false);
     const [selectedType, setSelectedType] = useState<RoomType | null>(null);
@@ -129,7 +131,6 @@ const RoomTypeAdmin: React.FC = () => {
         data.append('amenities', JSON.stringify(formData.amenities));
         data.append('mainImageIndex', mainImageIndex.toString());
 
-        // Tách ảnh cũ và ảnh mới
         const existingImages = images.filter(img => typeof img === 'string') as string[];
         const newFiles = images.filter(img => typeof img !== 'string') as File[];
 
@@ -233,279 +234,340 @@ const RoomTypeAdmin: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const getPriceUnit = (typeName: string) => {
-        const lowerName = typeName.toLowerCase();
-        if (lowerName.includes('karaoke')) return 'tiếng';
-        if (lowerName.includes('tiệc')) return 'buổi';
-        return 'ngày';
-    };
-
-    const getStatusBadge = (isActive: boolean) => {
-        return isActive
-            ? { text: 'Đang kinh doanh', color: 'text-emerald-600 bg-emerald-50' }
-            : { text: 'Tạm ngưng', color: 'text-rose-600 bg-rose-50' };
-    };
-
     const filteredTypes = roomTypes.filter(type => {
         const matchesSearch = type.name.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus = filterStatus === 'All' ||
             (filterStatus === 'active' && type.isActive) ||
             (filterStatus === 'inactive' && !type.isActive);
-        return matchesSearch && matchesStatus;
+        const matchesName = filterRoomName === 'All' || type.name === filterRoomName;
+        return matchesSearch && matchesStatus && matchesName;
     });
 
     const totalPages = Math.ceil(filteredTypes.length / ITEMS_PER_PAGE);
     const paginatedTypes = filteredTypes.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-    useEffect(() => {
-        if (currentPage > 1 && totalPages > 0 && currentPage > totalPages) {
-            setCurrentPage(totalPages);
-        }
-    }, [totalPages, currentPage]);
+    // --- LOGIC THỐNG KÊ (STATS) ---
+    const getStats = () => {
+        return {
+            total: roomTypes.length,
+            active: roomTypes.filter(t => t.isActive).length,
+            inactive: roomTypes.filter(t => !t.isActive).length,
+            inventory: roomTypes.reduce((acc, t) => acc + (t.totalInventory || 0), 0)
+        };
+    };
+
+    const stats = getStats();
 
     return (
-        <div className="p-6 bg-gray-50 min-h-screen">
+        <div className="p-8 bg-[#f5f7f9] dark:bg-slate-900 min-h-screen">
             <div className="max-w-[1600px] mx-auto">
-                {/* Header */}
-                <div className="mb-6">
-                    <h1 className="text-2xl font-semibold text-gray-900">Loại phòng khách sạn</h1>
-                    <p className="text-sm text-gray-500 mt-1">Định nghĩa các tiêu chuẩn phòng và giá cơ bản</p>
-                </div>
-
-                {/* Search and Filters */}
-                <div className="mb-4 flex flex-wrap gap-3 items-center justify-between">
-                    <div className="flex-1 max-w-md">
-                        <input
-                            type="text"
-                            placeholder="Tìm theo tên loại phòng..."
-                            className="w-full px-4 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
-                            value={searchTerm}
-                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                        />
-                    </div>
-                    <div className="flex gap-1">
-                        {[
-                            { value: 'All', label: 'Tất cả' },
-                            { value: 'active', label: 'Đang kinh doanh' },
-                            { value: 'inactive', label: 'Tạm ngưng' }
-                        ].map((status) => (
-                            <button
-                                key={status.value}
-                                onClick={() => { setFilterStatus(status.value); setCurrentPage(1); }}
-                                className={`px-3 py-1.5 text-sm rounded-md transition ${filterStatus === status.value
-                                        ? 'bg-gray-900 text-white'
-                                        : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                                    }`}
-                            >
-                                {status.label}
-                            </button>
-                        ))}
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+                    <div>
+                        <h2 className="text-3xl font-extrabold tracking-tight text-[#2c2f31] dark:text-slate-100 leading-tight font-['Manrope',sans-serif]">Loại phòng khách sạn</h2>
+                        <p className="text-[#595c5e] dark:text-slate-400 mt-1 font-medium font-['Inter',sans-serif]">Định nghĩa các tiêu chuẩn phòng và giá dịch vụ cơ bản.</p>
                     </div>
                     <button
                         onClick={() => { resetForm(); setIsModalOpen(true); }}
-                        className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
+                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-[#0050d4] to-[#0046bb] text-white font-bold rounded-xl shadow-lg shadow-[#0050d4]/20 hover:scale-[1.02] transition-all"
                     >
-                        + Thêm loại phòng
+                        <span className="material-symbols-outlined text-xl">add_circle</span>
+                        Thêm loại phòng mới
                     </button>
                 </div>
 
-                {/* Table */}
-                {loading ? (
-                    <div className="text-center py-12 bg-white rounded-md border border-gray-200">
-                        <p className="text-gray-400 text-sm">Đang tải...</p>
+                {/* Stats Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100/50 dark:border-slate-700">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300">
+                                <span className="material-symbols-outlined text-2xl">category</span>
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tổng loại phòng</p>
+                                <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100">{stats.total}</h3>
+                            </div>
+                        </div>
                     </div>
-                ) : filteredTypes.length === 0 ? (
-                    <div className="bg-white rounded-md border border-gray-200 text-center py-12">
-                        <p className="text-gray-400 text-sm">Không tìm thấy loại phòng nào</p>
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100/50 dark:border-slate-700">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                <span className="material-symbols-outlined text-2xl">check_box</span>
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Đang kinh doanh</p>
+                                <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{stats.active}</h3>
+                            </div>
+                        </div>
                     </div>
-                ) : (
-                    <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Thông tin</th>
-                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Giá</th>
-                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng</th>
-                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {paginatedTypes.map((type) => {
-                                    const statusBadge = getStatusBadge(type.isActive);
-                                    return (
-                                        <tr key={type._id} className="hover:bg-gray-50 transition">
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-100 shrink-0">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100/50 dark:border-slate-700">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center text-rose-600 dark:text-rose-400">
+                                <span className="material-symbols-outlined text-2xl">pause_circle</span>
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">Tạm ngưng</p>
+                                <h3 className="text-2xl font-black text-rose-600 dark:text-rose-400">{stats.inactive}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100/50 dark:border-slate-700">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-[#0050d4] dark:text-blue-400">
+                                <span className="material-symbols-outlined text-2xl">inventory_2</span>
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-[#0050d4] dark:text-blue-400 uppercase tracking-wider">Tổng tồn kho</p>
+                                <h3 className="text-2xl font-black text-[#2c2f31] dark:text-slate-100">{stats.inventory} phòng</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Filters & Table Section */}
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100/50 dark:border-slate-700">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                        {/* Search Input */}
+                        <div className="relative w-full md:max-w-md">
+                            <input
+                                type="text"
+                                placeholder="Tìm theo tên loại phòng..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                className="w-full pl-11 pr-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium focus:outline-none focus:border-[#0050d4] transition-all text-[#2c2f31] dark:text-slate-100 placeholder-[#abadaf]"
+                            />
+                            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#abadaf] text-[20px]">search</span>
+                        </div>
+
+                        {/* Filter Selects */}
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            {/* Status Filter */}
+                            <div className="relative flex-1 md:flex-none min-w-[160px]">
+                                <select
+                                    value={filterStatus}
+                                    onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                                    className="w-full appearance-none pl-10 pr-10 py-2.5 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-200 focus:ring-2 focus:ring-[#0050d4]/20 cursor-pointer transition-all"
+                                >
+                                    <option value="All">Trạng thái: Tất cả</option>
+                                    <option value="active">Đang kinh doanh</option>
+                                    <option value="inactive">Tạm ngưng</option>
+                                </select>
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#747779] text-[20px] pointer-events-none">filter_list</span>
+                                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747779] text-[20px] pointer-events-none">expand_more</span>
+                            </div>
+
+                            {/* Room Name Filter */}
+                            <div className="relative flex-1 md:flex-none min-w-[180px]">
+                                <select
+                                    value={filterRoomName}
+                                    onChange={(e) => { setFilterRoomName(e.target.value); setCurrentPage(1); }}
+                                    className="w-full appearance-none pl-11 pr-10 py-2.5 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-200 focus:ring-2 focus:ring-[#0050d4]/20 cursor-pointer transition-all"
+                                >
+                                    <option value="All">Loại phòng: Tất cả</option>
+                                    {[...new Set(roomTypes.map(t => t.name))].map(name => (
+                                        <option key={name} value={name}>{name}</option>
+                                    ))}
+                                </select>
+                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#747779] text-[20px] pointer-events-none">category</span>
+                                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747779] text-[20px] pointer-events-none">expand_more</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table Content */}
+                    {loading ? (
+                        <div className="text-center py-16">
+                            <div className="animate-pulse flex flex-col items-center">
+                                <div className="w-12 h-12 bg-[#e5e9eb] dark:bg-slate-700 rounded-full mb-4"></div>
+                                <p className="text-[#747779] dark:text-slate-400 text-sm font-medium">Đang tải dữ liệu...</p>
+                            </div>
+                        </div>
+                    ) : paginatedTypes.length === 0 ? (
+                        <div className="text-center py-16">
+                            <span className="material-symbols-outlined text-5xl text-[#abadaf] dark:text-slate-500 mb-3">category</span>
+                            <p className="text-[#747779] dark:text-slate-400 text-sm font-medium">Không tìm thấy loại phòng nào</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="text-[#595c5e] dark:text-slate-400 text-sm uppercase tracking-wider font-semibold">
+                                        <th className="pb-6 pl-2">Thông tin loại phòng</th>
+                                        <th className="pb-6">Giá cơ bản</th>
+                                        <th className="pb-6">Số lượng</th>
+                                        <th className="pb-6">Thông số</th>
+                                        <th className="pb-6">Trạng thái</th>
+                                        <th className="pb-6 text-right pr-2">Hành động</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#e5e9eb] dark:divide-slate-700">
+                                    {paginatedTypes.map((type) => (
+                                        <tr key={type._id} className="group hover:bg-[#f5f7f9] dark:hover:bg-slate-900/50 transition-colors">
+                                            <td className="py-5 pl-2">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-sm bg-[#eef1f3] border border-slate-100 dark:border-slate-700">
                                                         <img
-                                                            src={type.image || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?w=100&h=100&fit=crop'}
+                                                            src={type.image || 'https://images.unsplash.com/photo-1590490359683-658d3d23f972?w=200&h=200&fit=crop'}
                                                             className="w-full h-full object-cover"
                                                             alt={type.name}
                                                         />
                                                     </div>
                                                     <div>
-                                                        <p className="font-medium text-gray-900">{type.name}</p>
-                                                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-1 max-w-[200px]">
+                                                        <p className="font-bold text-[#2c2f31] dark:text-slate-100 text-base">{type.name}</p>
+                                                        <p className="text-xs text-[#747779] dark:text-slate-400 mt-0.5 line-clamp-1 max-w-[250px]">
                                                             {type.description || 'Chưa có mô tả'}
                                                         </p>
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                                                {type.capacity ?? 2} người
-                                                            </span>
-                                                            {type.size && (
-                                                                <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                                                    {type.size}m²
-                                                                </span>
-                                                            )}
-                                                            {type.bedType && (
-                                                                <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                                                    {type.bedType}
-                                                                </span>
-                                                            )}
-                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div>
-                                                    <p className="font-bold text-gray-900">
+                                            <td className="py-5">
+                                                <div className="flex flex-col">
+                                                    <span className="text-lg font-black text-[#0050d4] dark:text-blue-400">
                                                         {new Intl.NumberFormat('vi-VN').format(type.basePrice)}₫
-                                                    </p>
-                                                    <p className="text-[10px] text-gray-400">/ {getPriceUnit(type.name)}</p>
+                                                    </span>
+                                                    <span className="text-[10px] text-[#abadaf] font-bold uppercase tracking-wider">Mỗi đêm</span>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <p className="text-gray-700">{type.totalInventory ?? 0} phòng</p>
+                                            <td className="py-5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-[#2c2f31] dark:text-slate-300">
+                                                        <span className="material-symbols-outlined text-lg">door_open</span>
+                                                    </div>
+                                                    <span className="font-bold text-[#2c2f31] dark:text-slate-100">{type.totalInventory ?? 0} phòng</span>
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusBadge.color}`}>
-                                                    {statusBadge.text}
+                                            <td className="py-5">
+                                                <div className="flex flex-wrap gap-2">
+                                                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#eef1f3] dark:bg-slate-700 text-[11px] font-bold text-[#4e5c71] dark:text-slate-300">
+                                                        <span className="material-symbols-outlined text-xs">group</span>
+                                                        {type.capacity ?? 2}
+                                                    </span>
+                                                    {type.size && (
+                                                        <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#eef1f3] dark:bg-slate-700 text-[11px] font-bold text-[#4e5c71] dark:text-slate-300">
+                                                            <span className="material-symbols-outlined text-xs">square_foot</span>
+                                                            {type.size}m²
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="py-5">
+                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${type.isActive ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30'}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${type.isActive ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                                    {type.isActive ? 'Kinh doanh' : 'Tạm dừng'}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <div className="flex gap-2 justify-end">
+                                            <td className="py-5 text-right pr-2">
+                                                <div className="flex gap-1 justify-end">
                                                     <button
                                                         onClick={() => toggleStatus(type._id)}
-                                                        className={`p-1.5 text-xs font-medium rounded-md transition ${type.isActive
-                                                                ? 'text-amber-600 hover:bg-amber-50'
-                                                                : 'text-emerald-600 hover:bg-emerald-50'
-                                                            }`}
+                                                        className={`p-2 rounded-lg transition-all ${type.isActive ? 'hover:bg-amber-50 text-[#747779] hover:text-amber-600 dark:hover:bg-amber-900/20' : 'hover:bg-emerald-50 text-[#747779] hover:text-emerald-600 dark:hover:bg-emerald-900/20'}`}
                                                         title={type.isActive ? 'Tạm ngưng' : 'Kích hoạt'}
                                                     >
-                                                        <span className="material-symbols-outlined text-[18px]">
-                                                            {type.isActive ? 'pause' : 'play_arrow'}
-                                                        </span>
+                                                        <span className="material-symbols-outlined text-xl">{type.isActive ? 'pause' : 'play_arrow'}</span>
                                                     </button>
                                                     <button
                                                         onClick={() => openEditModal(type)}
-                                                        className="p-1.5 text-gray-400 hover:text-gray-600 transition"
-                                                        title="Sửa"
+                                                        className="p-2 hover:bg-[#eef1f3] dark:hover:bg-slate-700 rounded-lg text-[#747779] hover:text-[#0050d4] transition-all"
+                                                        title="Chỉnh sửa"
                                                     >
-                                                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                        <span className="material-symbols-outlined text-xl">edit_note</span>
                                                     </button>
                                                     <button
                                                         onClick={() => { setDeleteTargetId(type._id); setDeleteTargetName(type.name); }}
-                                                        className="p-1.5 text-gray-400 hover:text-rose-600 transition"
+                                                        className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-[#747779] hover:text-red-600 transition-all"
                                                         title="Xóa"
                                                     >
-                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                        <span className="material-symbols-outlined text-xl">delete</span>
                                                     </button>
                                                 </div>
                                             </td>
                                         </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
 
-                {/* Pagination */}
-                {filteredTypes.length > ITEMS_PER_PAGE && (
-                    <div className="mt-4">
-                        <Pagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            totalItems={filteredTypes.length}
-                            itemsPerPage={ITEMS_PER_PAGE}
-                            onPageChange={setCurrentPage}
-                        />
-                    </div>
-                )}
+                    {/* Pagination */}
+                    {filteredTypes.length > ITEMS_PER_PAGE && (
+                        <div className="flex items-center justify-between mt-10">
+                            <p className="text-sm text-[#747779] dark:text-slate-400 font-medium">
+                                Hiển thị <span className="font-bold text-[#2c2f31] dark:text-slate-100">{paginatedTypes.length}</span> trên <span className="font-bold text-[#2c2f31] dark:text-slate-100">{filteredTypes.length}</span> loại phòng
+                            </p>
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                totalItems={filteredTypes.length}
+                                itemsPerPage={ITEMS_PER_PAGE}
+                                onPageChange={setCurrentPage}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Modal Add/Edit */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto py-8">
-                    <div className="bg-white w-full max-w-2xl rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-3xl shadow-2xl my-auto animate-in fade-in zoom-in duration-200 overflow-hidden">
+                        <div className="sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-[#e5e9eb] dark:border-slate-700 px-8 py-6 flex justify-between items-center">
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-900">
-                                    {isEditMode ? 'Chỉnh sửa loại phòng' : 'Thêm loại phòng mới'}
+                                <h2 className="text-2xl font-black text-[#2c2f31] dark:text-slate-100 font-['Manrope',sans-serif]">
+                                    {isEditMode ? 'Cập nhật loại phòng' : 'Thêm loại phòng mới'}
                                 </h2>
-                                <p className="text-xs text-gray-400 mt-0.5">Thông tin chi tiết loại phòng</p>
+                                <p className="text-xs text-[#747779] dark:text-slate-400 mt-1 font-medium italic">Vui lòng điền đầy đủ các thông tin có dấu (*)</p>
                             </div>
-                            <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                            <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="w-10 h-10 flex items-center justify-center text-[#747779] hover:text-[#2c2f31] dark:hover:text-slate-200 hover:bg-[#f5f7f9] dark:hover:bg-slate-700 rounded-xl transition-all text-3xl font-light">&times;</button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            {/* Image Upload */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-2">Hình ảnh loại phòng</label>
-                                <div className="flex flex-wrap gap-3">
-                                    <label className="w-20 h-20 border-2 border-dashed border-gray-200 rounded-md flex flex-col items-center justify-center cursor-pointer hover:border-gray-400 transition bg-gray-50">
-                                        <span className="material-symbols-outlined text-gray-400 text-2xl">add_photo_alternate</span>
-                                        <span className="text-[9px] text-gray-400">Thêm</span>
+                        <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                            {/* Image Upload Area */}
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest">Hình ảnh giới thiệu</label>
+                                <div className="flex flex-wrap gap-4">
+                                    <label className="w-24 h-24 border-2 border-dashed border-[#d9dde0] dark:border-slate-700 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-[#0050d4] hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all bg-[#fbfcfd] dark:bg-slate-900 shadow-inner">
+                                        <span className="material-symbols-outlined text-[#abadaf] text-3xl">add_photo_alternate</span>
+                                        <span className="text-[10px] text-[#abadaf] font-bold mt-1">Tải ảnh lên</span>
                                         <input type="file" className="hidden" accept="image/*" multiple onChange={handleImageChange} />
                                     </label>
 
                                     {previews.map((src, idx) => (
-                                        <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border-2 border-gray-200 group">
+                                        <div key={idx} className="relative w-24 h-24 rounded-2xl overflow-hidden shadow-md group border border-slate-100 dark:border-slate-700">
                                             <img src={src} className="w-full h-full object-cover" alt={`Preview ${idx}`} />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMainImageIndex(idx)}
+                                                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${mainImageIndex === idx ? 'bg-emerald-500 text-white' : 'bg-white/20 text-white hover:bg-white/40'}`}
+                                                    title="Đặt làm ảnh chính"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">{mainImageIndex === idx ? 'check' : 'star'}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeImage(idx)}
+                                                    className="w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center hover:bg-rose-600 transition-all"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">close</span>
+                                                </button>
+                                            </div>
                                             {mainImageIndex === idx && (
-                                                <div className="absolute top-0 left-0 right-0 bg-gray-900/70 text-white text-[8px] font-medium text-center py-0.5">
-                                                    Ảnh chính
-                                                </div>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={() => removeImage(idx)}
-                                                className="absolute top-0 right-0 bg-rose-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition"
-                                            >
-                                                ×
-                                            </button>
-                                            {!mainImageIndex && idx === 0 && previews.length === 1 && (
-                                                <div className="absolute bottom-0 left-0 right-0 bg-blue-500 text-white text-[8px] font-medium text-center py-0.5">
-                                                    Ảnh chính
+                                                <div className="absolute top-0 inset-x-0 bg-gradient-to-b from-[#0050d4]/80 to-transparent py-1.5 text-center">
+                                                    <span className="text-[8px] font-black text-white uppercase tracking-tighter">Ảnh đại diện</span>
                                                 </div>
                                             )}
                                         </div>
                                     ))}
                                 </div>
-                                {previews.length > 0 && (
-                                    <div className="mt-2 flex items-center gap-2">
-                                        <span className="text-[10px] text-gray-500">Chọn ảnh chính:</span>
-                                        <select
-                                            value={mainImageIndex}
-                                            onChange={(e) => setMainImageIndex(parseInt(e.target.value))}
-                                            className="text-xs border border-gray-200 rounded px-2 py-1"
-                                        >
-                                            {previews.map((_, idx) => (
-                                                <option key={idx} value={idx}>Ảnh {idx + 1}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-                                <p className="text-[10px] text-gray-400 mt-1">Có thể chọn nhiều ảnh. Ảnh đầu tiên sẽ là ảnh đại diện mặc định</p>
+                                <p className="text-[10px] text-[#abadaf] dark:text-slate-500 font-medium">* Bạn có thể tải nhiều ảnh. Nhấn <span className="text-[#0050d4]">biểu tượng ngôi sao</span> để chọn ảnh đại diện.</p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="md:col-span-2">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Tên loại phòng *</label>
+                                    <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest mb-2">Tên loại phòng *</label>
                                     <input
                                         name="name"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
+                                        className="w-full px-5 py-3.5 bg-[#fbfcfd] dark:bg-slate-900 border border-[#d9dde0] dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-100 focus:outline-none focus:border-[#0050d4] focus:ring-4 focus:ring-[#0050d4]/5 transition-all outline-none"
                                         placeholder="Ví dụ: Deluxe Sea View"
                                         required
                                         value={formData.name}
@@ -514,137 +576,142 @@ const RoomTypeAdmin: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Giá cơ bản (VNĐ) *</label>
-                                    <input
-                                        name="basePrice"
-                                        type="number"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
-                                        placeholder="500000"
-                                        required
-                                        value={formData.basePrice}
-                                        onChange={handleChange}
-                                    />
+                                    <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest mb-2">Giá cơ bản (VNĐ) *</label>
+                                    <div className="relative">
+                                        <input
+                                            name="basePrice"
+                                            type="number"
+                                            className="w-full pl-12 pr-5 py-3.5 bg-[#fbfcfd] dark:bg-slate-900 border border-[#d9dde0] dark:border-slate-700 rounded-2xl text-lg font-black text-[#0050d4] dark:text-blue-400 focus:outline-none focus:border-[#0050d4] transition-all outline-none"
+                                            placeholder="500000"
+                                            required
+                                            value={formData.basePrice}
+                                            onChange={handleChange}
+                                        />
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-[#0050d4]/40">₫</span>
+                                    </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Tổng số phòng</label>
-                                    <input
-                                        name="totalInventory"
-                                        type="number"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-500"
-                                        placeholder="0"
-                                        disabled
-                                        value={formData.totalInventory}
-                                        onChange={handleChange}
-                                    />
-                                    <p className="text-[9px] text-gray-400 mt-0.5">(Tự động từ Quản lý phòng)</p>
+                                    <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest mb-2">Sức chứa tối đa *</label>
+                                    <div className="relative">
+                                        <input
+                                            name="capacity"
+                                            type="number"
+                                            className="w-full pl-12 pr-5 py-3.5 bg-[#fbfcfd] dark:bg-slate-900 border border-[#d9dde0] dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-100 outline-none focus:border-[#0050d4] transition-all"
+                                            value={formData.capacity}
+                                            onChange={handleChange}
+                                        />
+                                        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#abadaf] text-xl">person_add</span>
+                                    </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Sức chứa (người)</label>
-                                    <input
-                                        name="capacity"
-                                        type="number"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
-                                        value={formData.capacity}
-                                        onChange={handleChange}
-                                    />
+                                    <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest mb-2">Diện tích phòng (m²)</label>
+                                    <div className="relative">
+                                        <input
+                                            name="size"
+                                            type="number"
+                                            className="w-full pl-12 pr-5 py-3.5 bg-[#fbfcfd] dark:bg-slate-900 border border-[#d9dde0] dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-100 outline-none focus:border-[#0050d4] transition-all"
+                                            placeholder="25"
+                                            value={formData.size}
+                                            onChange={handleChange}
+                                        />
+                                        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#abadaf] text-xl">square_foot</span>
+                                    </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Diện tích (m²)</label>
-                                    <input
-                                        name="size"
-                                        type="number"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
-                                        placeholder="25"
-                                        value={formData.size}
-                                        onChange={handleChange}
-                                    />
+                                    <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest mb-2">Kiểu giường</label>
+                                    <div className="relative">
+                                        <select
+                                            name="bedType"
+                                            className="w-full pl-12 pr-5 py-3.5 bg-[#fbfcfd] dark:bg-slate-900 border border-[#d9dde0] dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-100 cursor-pointer outline-none focus:border-[#0050d4] appearance-none"
+                                            value={formData.bedType}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="Single">Single (1 giường đơn)</option>
+                                            <option value="Double">Double (1 giường đôi)</option>
+                                            <option value="Twin">Twin (2 giường đơn)</option>
+                                            <option value="Queen">Queen (1 giường lớn)</option>
+                                            <option value="King">King (1 giường siêu lớn)</option>
+                                            <option value="Family">Family (2 giường đôi)</option>
+                                        </select>
+                                        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#abadaf] text-xl pointer-events-none">bed</span>
+                                        <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-[#abadaf] text-xl pointer-events-none">expand_more</span>
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Loại giường</label>
-                                    <select
-                                        name="bedType"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:border-gray-400"
-                                        value={formData.bedType}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="Single">Single (1 giường đơn)</option>
-                                        <option value="Double">Double (1 giường đôi)</option>
-                                        <option value="Twin">Twin (2 giường đơn)</option>
-                                        <option value="Queen">Queen (1 giường lớn)</option>
-                                        <option value="King">King (1 giường siêu lớn)</option>
-                                        <option value="Family">Family (2 giường đôi)</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Hướng nhìn</label>
-                                    <input
-                                        name="view"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition"
-                                        placeholder="Hướng biển, Hướng phố..."
-                                        value={formData.view}
-                                        onChange={handleChange}
-                                    />
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest mb-2">Hướng nhìn (View)</label>
+                                    <div className="relative">
+                                        <input
+                                            name="view"
+                                            className="w-full pl-12 pr-5 py-3.5 bg-[#fbfcfd] dark:bg-slate-900 border border-[#d9dde0] dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-100 outline-none focus:border-[#0050d4] transition-all"
+                                            placeholder="Ví dụ: Hướng biển trực diện, Hướng vườn, Hướng phố..."
+                                            value={formData.view}
+                                            onChange={handleChange}
+                                        />
+                                        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#abadaf] text-xl">photo_camera_back</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Amenities */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-2">Tiện nghi</label>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {/* Amenities Toggle Area */}
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest">Tiện nghi phòng</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {[
-                                        { key: 'wifi', label: 'Wi-Fi' },
-                                        { key: 'airConditioner', label: 'Điều hòa' },
-                                        { key: 'breakfast', label: 'Bữa sáng' },
-                                        { key: 'minibar', label: 'Minibar' },
-                                        { key: 'tv', label: 'TV' },
-                                        { key: 'balcony', label: 'Ban công' }
+                                        { key: 'wifi', label: 'Wi-Fi miễn phí', icon: 'wifi' },
+                                        { key: 'airConditioner', label: 'Điều hòa nhiệt độ', icon: 'ac_unit' },
+                                        { key: 'breakfast', label: 'Bao gồm bữa sáng', icon: 'restaurant' },
+                                        { key: 'minibar', label: 'Minibar & Tủ lạnh', icon: 'kitchen' },
+                                        { key: 'tv', label: 'Smart TV 4K', icon: 'tv' },
+                                        { key: 'balcony', label: 'Ban công ngắm cảnh', icon: 'balcony' }
                                     ].map(amenity => {
                                         const isChecked = formData.amenities[amenity.key as keyof typeof formData.amenities];
                                         return (
-                                            <label key={amenity.key} className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={() => handleAmenitiesChange(amenity.key as any)}
-                                                    className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
-                                                />
-                                                <span className="text-sm text-gray-700">{amenity.label}</span>
-                                            </label>
+                                            <button
+                                                key={amenity.key}
+                                                type="button"
+                                                onClick={() => handleAmenitiesChange(amenity.key as any)}
+                                                className={`flex items-center gap-2 p-3 rounded-2xl border-2 transition-all font-bold text-xs ${isChecked
+                                                    ? 'bg-blue-50/50 border-[#0050d4] text-[#0050d4] dark:bg-blue-900/10 dark:text-blue-400'
+                                                    : 'bg-white border-slate-100 text-[#747779] dark:bg-slate-900 dark:border-slate-700 dark:text-slate-500 hover:border-[#abadaf]'
+                                                    }`}
+                                            >
+                                                <span className="material-symbols-outlined text-lg">{amenity.icon}</span>
+                                                {amenity.label}
+                                            </button>
                                         );
                                     })}
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Mô tả chi tiết</label>
+                            <div className="space-y-2">
+                                <label className="block text-xs font-black text-[#595c5e] dark:text-slate-400 uppercase tracking-widest">Mô tả chi tiết</label>
                                 <textarea
                                     name="description"
-                                    rows={3}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-gray-400 transition resize-none"
-                                    placeholder="Mô tả đặc điểm nổi bật của loại phòng..."
+                                    rows={4}
+                                    className="w-full px-5 py-4 bg-[#fbfcfd] dark:bg-slate-900 border border-[#d9dde0] dark:border-slate-700 rounded-2xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 focus:outline-none focus:border-[#0050d4] transition-all resize-none leading-relaxed shadow-inner"
+                                    placeholder="Nơi ghi chú những đặc điểm nổi bật nhất của căn phòng..."
                                     value={formData.description}
                                     onChange={handleChange}
                                 />
                             </div>
 
-                            <div className="flex gap-3 pt-4">
+                            <div className="flex gap-4 pt-6">
                                 <button
                                     type="button"
                                     onClick={() => { setIsModalOpen(false); resetForm(); }}
-                                    className="flex-1 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition"
+                                    className="flex-1 py-4 bg-[#f5f7f9] dark:bg-slate-700 text-[#4e5c71] dark:text-slate-200 text-sm font-black rounded-2xl hover:bg-[#eef1f3] dark:hover:bg-slate-600 transition-all border border-slate-200 dark:border-slate-600"
                                 >
-                                    Hủy
+                                    Hủy bỏ
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition"
+                                    className="flex-1 py-4 bg-gradient-to-r from-[#0050d4] to-[#0046bb] text-white text-sm font-black rounded-2xl shadow-xl shadow-[#0050d4]/20 hover:scale-[1.01] active:scale-[0.98] transition-all"
                                 >
-                                    {isEditMode ? 'Cập nhật' : 'Thêm loại phòng'}
+                                    {isEditMode ? 'Cập nhật thay đổi' : 'Xác nhận thêm mới'}
                                 </button>
                             </div>
                         </form>
@@ -656,7 +723,7 @@ const RoomTypeAdmin: React.FC = () => {
             <ConfirmModal
                 isOpen={!!deleteTargetId}
                 title="Xác nhận xóa"
-                message={`Bạn có chắc chắn muốn xóa loại phòng "${deleteTargetName}"? Hành động này không thể hoàn tác.`}
+                message={`Bạn có chắc chắn muốn xóa loại phòng "${deleteTargetName}"? Hành động này sẽ gây lỗi nếu đang có phòng thuộc loại này. Bạn nên Tạm ngưng thay vì xóa.`}
                 onConfirm={() => deleteTargetId && deleteRoomType(deleteTargetId)}
                 onCancel={() => { setDeleteTargetId(null); setDeleteTargetName(''); }}
             />

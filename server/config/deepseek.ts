@@ -1,22 +1,29 @@
 import axios from 'axios';
 
-async function main(prompt: string): Promise<string> {
+async function main(prompt: string, context?: string): Promise<string> {
     try {
+        const messages = [];
+        
+        // Add system context if provided
+        if (context) {
+            messages.push({ role: "system", content: context });
+        }
+        
+        messages.push({ role: "user", content: prompt });
+
         const response = await axios.post(
             "https://openrouter.ai/api/v1/chat/completions",
             {
-                model: "deepseek/deepseek-chat",
-                messages: [
-                    {
-                        role: "user",
-                        content: prompt
-                    }
-                ]
+                model: "google/gemini-2.0-flash-001",
+                max_tokens: 2048,
+                messages: messages
             },
             {
                 headers: {
                     Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "http://localhost:3000",
+                    "X-Title": "Hotel Management System"
                 }
             }
         );

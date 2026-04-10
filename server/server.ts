@@ -12,6 +12,7 @@ import searchRouter from "./routes/searchRoute.ts";
 import bookingRouter from "./routes/bookingRoute.ts";
 import commentRouter from "./routes/commentRoute.ts";
 import statsRouter from "./routes/statsRoute.ts";
+import chatRouter from "./routes/chatRoutes.ts";
 
 import { createServer } from 'http';
 import { initSocket } from './socket.ts';
@@ -44,6 +45,7 @@ app.use("/api/promotions", promotionRouter);
 app.use("/api/search", searchRouter);
 app.use("/api/bookings", bookingRouter);
 app.use("/api/comments", commentRouter);
+app.use("/api/chat", chatRouter);
 
 app.get('/', (_req: Request, res: Response) => res.send('API is working'));
 
@@ -55,3 +57,4 @@ const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+

@@ -36,6 +36,7 @@ export interface IBooking extends Document {
     checkInTime?: string;
     specialRequests?: string;
     adminNote?: string; // Ghi chú riêng của Admin
+    source?: 'web' | 'chatbot';
     createdAt: Date;
     updatedAt: Date;
 }
@@ -138,6 +139,11 @@ const bookingSchema = new Schema<IBooking>(
         adminNote: {
             type: String,
             default: ""
+        },
+        source: {
+            type: String,
+            enum: ['web', 'chatbot'],
+            default: 'web'
         }
     }, 
     { timestamps: true }

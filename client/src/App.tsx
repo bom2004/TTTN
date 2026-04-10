@@ -7,6 +7,7 @@ import Footer from "./components/Footer";
 import SidebarAdmin from './admin/components/SidebarAdmin';
 import SidebarStaff from './Staff/components/SidebarStaff';
 import LoadingScreen from "./utils/LoadingScreen";
+import Chatbot from "./chatbot/chatbot";
 
 // Lazy Loaded Pages (Pages) cho Client (Chỉ tải khi người dùng truy cập)
 const Home = lazy(() => import("./pages/Home"));
@@ -24,6 +25,8 @@ const UserAdmin = lazy(() => import("./admin/dashboard/user"));
 const PromotionAdmin = lazy(() => import("./admin/dashboard/PromotionAdmin"));
 const StaffAdmin = lazy(() => import("./admin/dashboard/StaffAdmin"));
 const CommentAdmin = lazy(() => import("./admin/dashboard/commentadmin"));
+const ChatbotAdmin = lazy(() => import("./admin/dashboard/chatbotAdmin"));
+
 
 // Lazy Loaded Pages (Pages) cho Staff
 const HomeStaff = lazy(() => import("./Staff/components/HomeStaff"));
@@ -99,7 +102,9 @@ const App: React.FC = () => {
                 <Route path="/owner/rooms" element={<RoomAdmin />} />
                 <Route path="/owner/promotions" element={<PromotionAdmin />} />
                 <Route path="/owner/comments" element={<CommentAdmin />} />
+                <Route path="/owner/chatbot" element={<ChatbotAdmin />} />
               </Routes>
+
             </main>
           </div>
         ) : isStaffPath ? (
@@ -142,6 +147,7 @@ const App: React.FC = () => {
           </>
         )}
       </Suspense>
+      <Chatbot />
     </div>
   );
 };

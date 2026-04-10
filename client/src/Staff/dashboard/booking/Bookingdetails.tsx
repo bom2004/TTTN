@@ -8,13 +8,10 @@ interface BookingDetailsProps {
     onClose: () => void;
     isAdmin: boolean;
     roomTypes: any[];
-    formatCheckInTime: (booking: any) => string;
-    formatPaymentMethod: (method: string) => string;
     isUpdating: boolean;
     handleUpdateStatus: (id: string, status: string, paymentStatus?: string) => void;
     handleDeleteBooking: (id: string) => void;
     handleExportInvoice: (booking: any) => void;
-    isBeforeCheckIn: (booking: any) => boolean;
     setSelectedRoomIds: (ids: string[]) => void;
     setIsAssignModalOpen: (val: boolean) => void;
     fetchBookings: () => void;
@@ -25,19 +22,16 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
     onClose,
     isAdmin,
     roomTypes,
-    formatCheckInTime,
-    formatPaymentMethod,
     isUpdating,
     handleUpdateStatus,
     handleDeleteBooking,
     handleExportInvoice,
-    isBeforeCheckIn,
     setSelectedRoomIds,
     setIsAssignModalOpen,
     fetchBookings
 }) => {
     const dispatch = useAppDispatch();
-    
+
     // Local States for Editing
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [editForm, setEditForm] = useState<any>(null);
@@ -86,7 +80,7 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                 updateData: editForm
             })).unwrap();
             if (needsReassign) {
-                toast.success("Cập nhật thành công! Đơn đã về trạng thái 'Chờ duyệt' — vui lòng gán phòng lại.");
+                toast.success("Cập nhật thành công! Vui lòng gán phòng lại.");
             } else {
                 toast.success("Cập nhật đơn hàng thành công!");
             }
@@ -115,436 +109,432 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
         }
     };
 
+    const getStatusTheme = (status: string) => {
+        switch (status) {
+            case 'pending': return { label: 'Chờ duyệt', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', dot: 'bg-amber-500' };
+            case 'confirmed': return { label: 'Xác nhận', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', dot: 'bg-blue-500' };
+            case 'checked_in': return { label: 'Đã nhận phòng', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', dot: 'bg-indigo-500' };
+            case 'completed': return { label: 'Hoàn thành', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' };
+            case 'cancelled': return { label: 'Đã hủy', color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', dot: 'bg-rose-500' };
+            default: return { label: status, color: 'bg-gray-100 text-gray-700', dot: 'bg-gray-500' };
+        }
+    };
+
+    const statusTheme = getStatusTheme(booking.status);
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto p-4">
-            <div className="bg-white w-full max-w-3xl my-auto rounded-lg shadow-xl animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-[#f8fafc] dark:bg-slate-800 w-full max-w-4xl my-auto rounded-[32px] shadow-2xl border border-white/20 overflow-hidden animate-in fade-in zoom-in duration-300">
                 {/* Header */}
-                <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center z-10 rounded-t-lg">
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
-                            {isEditing ? "Chỉnh sửa đơn hàng" : `Chi tiết đơn #${booking._id.slice(-8).toUpperCase()}`}
-                        </h2>
-                        <p className="text-xs text-gray-400 mt-0.5">{new Date(booking.createdAt).toLocaleString('vi-VN')}</p>
+                <div className="bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 px-8 py-6 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <span className="material-symbols-outlined text-2xl">receipt_long</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black text-[#2c2f31] dark:text-slate-100 font-['Manrope',sans-serif]">
+                                {isEditing ? "Chỉnh sửa đơn hàng" : `Đơn đặt #${booking._id.slice(-8).toUpperCase()}`}
+                            </h2>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tight ${statusTheme.color}`}>
+                                    <span className={`w-1 h-1 rounded-full ${statusTheme.dot}`}></span>
+                                    {statusTheme.label}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">• {new Date(booking.createdAt).toLocaleString('vi-VN')}</span>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-3">
                         {isAdmin && !isEditing && !['checked_in', 'checked_out', 'completed'].includes(booking.status) && (
                             <button
                                 onClick={startEditing}
-                                className="px-3 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded text-xs font-bold hover:bg-amber-100 transition flex items-center gap-1"
+                                className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 font-bold text-xs rounded-xl border border-amber-100 dark:border-amber-900/30 hover:bg-amber-100 transition-all"
                             >
-                                <span className="material-symbols-outlined text-sm">edit</span>
+                                <span className="material-symbols-outlined text-base">edit</span>
                                 Chỉnh sửa
                             </button>
                         )}
-                        <button onClick={() => { setIsEditing(false); onClose(); }} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                        <button
+                            onClick={() => { setIsEditing(false); onClose(); }}
+                            className="w-10 h-10 flex items-center justify-center bg-slate-50 dark:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full transition-all"
+                        >
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
                     </div>
                 </div>
 
-                {/* Body */}
-                <div className="p-6 space-y-6">
-                    {/* Customer Info */}
+                {/* Content Body */}
+                <div className="p-8 max-h-[75vh] overflow-y-auto custom-scrollbar">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Thông tin khách hàng</p>
-                            {isEditing ? (
-                                <div className="space-y-3">
-                                    <input
-                                        className="w-full px-3 py-2 border border-gray-200 rounded text-sm"
-                                        value={editForm.customerInfo.name}
-                                        onChange={(e) => setEditForm({ ...editForm, customerInfo: { ...editForm.customerInfo, name: e.target.value } })}
-                                        placeholder="Tên khách"
-                                    />
-                                    <input
-                                        className="w-full px-3 py-2 border border-gray-200 rounded text-sm"
-                                        value={editForm.customerInfo.phone}
-                                        onChange={(e) => setEditForm({ ...editForm, customerInfo: { ...editForm.customerInfo, phone: e.target.value } })}
-                                        placeholder="Số điện thoại"
-                                    />
-                                    <input
-                                        className="w-full px-3 py-2 border border-gray-200 rounded text-sm"
-                                        value={editForm.customerInfo.email}
-                                        onChange={(e) => setEditForm({ ...editForm, customerInfo: { ...editForm.customerInfo, email: e.target.value } })}
-                                        placeholder="Email"
-                                    />
+                        {/* Information Grid */}
+                        <div className="space-y-6">
+                            {/* Customer Card */}
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <span className="material-symbols-outlined text-6xl">person</span>
                                 </div>
-                            ) : (
-                                <div className="bg-gray-50 p-4 rounded-lg">
-                                    <p className="font-bold text-gray-800">{booking.customerInfo.name}</p>
-                                    <p className="text-sm text-gray-600 mt-1 flex items-center gap-2"><span className="material-symbols-outlined text-sm">call</span>{booking.customerInfo.phone}</p>
-                                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-2"><span className="material-symbols-outlined text-sm">mail</span>{booking.customerInfo.email}</p>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Lịch lưu trú</p>
-                            {isEditing ? (
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="text-[9px] font-bold text-gray-400 block mb-0.5">NGÀY NHẬN</label>
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Thông tin khách hàng</h3>
+                                {isEditing ? (
+                                    <div className="space-y-3 relative z-10">
                                         <input
-                                            type="date"
-                                            className="w-full px-3 py-2 border border-gray-200 rounded text-sm"
-                                            value={editForm.checkInDate}
-                                            onChange={(e) => setEditForm({ ...editForm, checkInDate: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:border-blue-500 outline-none transition-all"
+                                            value={editForm.customerInfo.name}
+                                            onChange={(e) => setEditForm({ ...editForm, customerInfo: { ...editForm.customerInfo, name: e.target.value } })}
+                                            placeholder="Tên khách hàng"
+                                        />
+                                        <input
+                                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:border-blue-500 outline-none transition-all"
+                                            value={editForm.customerInfo.phone}
+                                            onChange={(e) => setEditForm({ ...editForm, customerInfo: { ...editForm.customerInfo, phone: e.target.value } })}
+                                            placeholder="Số điện thoại"
+                                        />
+                                        <input
+                                            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:border-blue-500 outline-none transition-all"
+                                            value={editForm.customerInfo.email}
+                                            onChange={(e) => setEditForm({ ...editForm, customerInfo: { ...editForm.customerInfo, email: e.target.value } })}
+                                            placeholder="Email"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="text-[9px] font-bold text-gray-400 block mb-0.5">NGÀY TRẢ</label>
-                                        <input
-                                            type="date"
-                                            className="w-full px-3 py-2 border border-gray-200 rounded text-sm"
-                                            value={editForm.checkOutDate}
-                                            onChange={(e) => setEditForm({ ...editForm, checkOutDate: e.target.value })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] font-bold text-gray-400 block mb-0.5">GIỜ NHẬN DỰ KIẾN</label>
-                                        <select
-                                            className="w-full px-3 py-2 border border-gray-200 rounded text-sm font-bold text-amber-700 bg-amber-50"
-                                            value={editForm.checkInTime}
-                                            onChange={(e) => setEditForm({ ...editForm, checkInTime: e.target.value })}
-                                        >
-                                            <option value="Tôi chưa biết">Tôi chưa biết</option>
-                                            <option value="00:00 - 02:00">00:00 - 02:00</option>
-                                            <option value="02:00 - 04:00">02:00 - 04:00</option>
-                                            <option value="04:00 - 06:00">04:00 - 06:00</option>
-                                            <option value="06:00 - 08:00">06:00 - 08:00</option>
-                                            <option value="08:00 - 10:00">08:00 - 10:00</option>
-                                            <option value="10:00 - 12:00">10:00 - 12:00</option>
-                                            <option value="12:00 - 14:00">12:00 - 14:00</option>
-                                            <option value="14:00 - 16:00">14:00 - 16:00 (Tiêu chuẩn)</option>
-                                            <option value="16:00 - 18:00">16:00 - 18:00</option>
-                                            <option value="18:00 - 20:00">18:00 - 20:00</option>
-                                            <option value="20:00 - 22:00">20:00 - 22:00</option>
-                                            <option value="22:00 - 24:00">22:00 - 24:00</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-gray-50 p-4 rounded-lg">
-                                    <div className="flex justify-between items-center mb-1">
-                                        <p className="text-xs text-gray-400 font-bold uppercase">Check-in</p>
-                                        <p className="text-sm font-medium">{new Date(booking.checkInDate).toLocaleDateString('vi-VN')} ({formatCheckInTime(booking)})</p>
-                                    </div>
-                                    <div className="flex justify-between items-center pb-2 border-b border-gray-200">
-                                        <p className="text-xs text-gray-400 font-bold uppercase">Check-out</p>
-                                        <p className="text-sm font-medium">{new Date(booking.checkOutDate).toLocaleDateString('vi-VN')} (12:00)</p>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-2 text-right">{nights} ngày lưu trú</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Room & Pricing */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Phân bổ phòng</p>
-                            {isEditing ? (
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="text-[9px] font-bold text-gray-400 block mb-0.5">LOẠI PHÒNG</label>
-                                        <select
-                                            className={`w-full px-3 py-2 border rounded text-sm ${
-                                                roomTypeChanged ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-gray-200'
-                                            }`}
-                                            value={editForm.roomTypeId}
-                                            onChange={(e) => setEditForm({ ...editForm, roomTypeId: e.target.value })}
-                                        >
-                                            {roomTypes.map((rt: any) => (
-                                                <option key={rt._id} value={rt._id}>{rt.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    {needsReassign && (
-                                        <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-300 rounded-lg">
-                                            <span className="material-symbols-outlined text-amber-500 text-base mt-0.5">warning</span>
-                                            <p className="text-[10px] text-amber-700 font-semibold leading-relaxed">
-                                                {roomTypeChanged
-                                                    ? 'Đổi loại phòng sẽ xóa phòng đã gán. Đơn sẽ về "Chờ duyệt" — cần gán phòng mới sau khi lưu.'
-                                                    : 'Đổi ngày lưu trú sẽ xóa phòng đã gán. Cần gán phòng lại sau khi lưu.'}
-                                            </p>
+                                ) : (
+                                    <div className="space-y-3 relative z-10">
+                                        <p className="text-lg font-black text-slate-800 dark:text-slate-100">{booking.customerInfo.name}</p>
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                                <span className="material-symbols-outlined text-lg">call</span>
+                                                <span className="text-sm font-bold tracking-tight">{booking.customerInfo.phone}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                                <span className="material-symbols-outlined text-lg">mail</span>
+                                                <span className="text-sm font-medium">{booking.customerInfo.email}</span>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div>
-                                        <label className="text-[9px] font-bold text-gray-400 block mb-0.5">SỐ LƯỢNG</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            className="w-full px-3 py-2 border border-gray-200 rounded text-sm"
-                                            value={editForm.roomQuantity}
-                                            onChange={(e) => setEditForm({ ...editForm, roomQuantity: parseInt(e.target.value) })}
-                                        />
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 italic">
-                                    <p className="text-sm font-bold text-blue-900">{booking.roomTypeId?.name || booking.roomTypeInfo?.name || 'N/A'}</p>
-                                    <p className="text-xs text-blue-700 mt-1">Số lượng: {booking.roomQuantity} phòng</p>
-                                    {booking.details?.length > 0 && (
-                                        <div className="mt-3 flex flex-wrap gap-1">
-                                            {booking.details.map((d: any) => (
-                                                <span key={d._id} className="px-2 py-0.5 bg-white border border-blue-200 rounded text-[10px] font-bold text-blue-600">
-                                                    Phòng {d.roomId?.roomNumber || 'N/A'}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Chi phí & Thanh toán</p>
-                            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Giá niêm yết:</span>
-                                    <span className="font-medium text-gray-700">{new Intl.NumberFormat('vi-VN').format(booking.totalAmount)}₫</span>
-                                </div>
-                                {booking.discountAmount > 0 && (
-                                    <div className="flex justify-between text-xs">
-                                        <span className="text-gray-500">Giảm giá ({booking.promotionCode}):</span>
-                                        <span className="text-rose-500">-{new Intl.NumberFormat('vi-VN').format(booking.discountAmount)}₫</span>
                                     </div>
                                 )}
-                                <div className="flex justify-between items-center py-2 border-y border-gray-200">
-                                    <span className="font-bold text-gray-900 uppercase text-[11px]">Tổng cộng:</span>
-                                    <span className="font-black text-base text-gray-900">{new Intl.NumberFormat('vi-VN').format(booking.finalAmount)}₫</span>
-                                </div>
+                            </div>
 
-                                <div className="pt-1">
-                                    {isEditing ? (
-                                        <div className="space-y-3 mt-4 bg-white p-3 border border-amber-200 rounded-lg">
-                                            <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Tài chính đơn hàng</p>
-                                            <div>
-                                                <label className="text-[8px] font-bold text-gray-400 block mb-0.5 tracking-tighter">SỐ TIỀN KHÁCH ĐÃ NỘP (CỐ ĐỊNH)</label>
-                                                <div className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded text-sm font-bold text-emerald-700">
-                                                    {new Intl.NumberFormat('vi-VN').format(editForm.paidAmount)}₫
-                                                    <span className="text-[9px] ml-1 font-normal text-gray-500 italic">(Không được phép sửa)</span>
-                                                </div>
+                            {/* Stay Details */}
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Lịch trình lưu trú</h3>
+                                {isEditing ? (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="col-span-1">
+                                            <label className="text-[9px] font-black text-slate-400 block mb-1.5 ml-1">NGÀY NHẬN</label>
+                                            <input
+                                                type="date"
+                                                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold"
+                                                value={editForm.checkInDate}
+                                                onChange={(e) => setEditForm({ ...editForm, checkInDate: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="col-span-1">
+                                            <label className="text-[9px] font-black text-slate-400 block mb-1.5 ml-1">NGÀY TRẢ</label>
+                                            <input
+                                                type="date"
+                                                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold"
+                                                value={editForm.checkOutDate}
+                                                onChange={(e) => setEditForm({ ...editForm, checkOutDate: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="col-span-2 mt-2">
+                                            <label className="text-[9px] font-black text-slate-400 block mb-1.5 ml-1 uppercase">Giờ nhận dự kiến</label>
+                                            <select
+                                                className="w-full px-4 py-2.5 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl text-sm font-bold text-blue-700 dark:text-blue-400"
+                                                value={editForm.checkInTime}
+                                                onChange={(e) => setEditForm({ ...editForm, checkInTime: e.target.value })}
+                                            >
+                                                {["Tôi chưa biết", "00:00 - 02:00", "02:00 - 04:00", "04:00 - 06:00", "06:00 - 08:00", "08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 20:00", "20:00 - 22:00", "22:00 - 24:00"].map(t => (
+                                                    <option key={t} value={t}>{t}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider mb-1">Check-in</span>
+                                                <span className="text-base font-black text-slate-700 dark:text-slate-200">{new Date(booking.checkInDate).toLocaleDateString('vi-VN')}</span>
+                                                <span className="text-xs font-bold text-blue-500 mt-0.5">{booking.checkInTime || '14:00'}</span>
                                             </div>
-                                            <div>
-                                                <label className="text-[8px] font-bold text-gray-400 block mb-0.5 tracking-tighter">TRẠNG THÁI THANH TOÁN</label>
-                                                <select
-                                                    className="w-full px-3 py-2 border border-gray-200 rounded text-xs"
-                                                    value={editForm.paymentStatus}
-                                                    onChange={(e) => setEditForm({ ...editForm, paymentStatus: e.target.value })}
-                                                >
-                                                    <option value="unpaid">Chưa thanh toán</option>
-                                                    <option value="deposited">Đã cọc</option>
-                                                </select>
+                                            <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-slate-300">double_arrow</span>
+                                            </div>
+                                            <div className="flex flex-col items-end text-right">
+                                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider mb-1">Check-out</span>
+                                                <span className="text-base font-black text-slate-700 dark:text-slate-200">{new Date(booking.checkOutDate).toLocaleDateString('vi-VN')}</span>
+                                                <span className="text-xs font-bold text-slate-400 mt-0.5">12:00</span>
                                             </div>
                                         </div>
-                                    ) : (
-                                        <>
-                                            {(() => {
-                                                const breakdown = booking.paymentHistory?.length > 0
-                                                    ? booking.paymentHistory.reduce((acc: any, h: any) => {
-                                                        acc[h.paymentMethod] = (acc[h.paymentMethod] || 0) + h.amount;
-                                                        return acc;
-                                                    }, { vnpay: 0, cash: 0 })
-                                                    : {
-                                                        vnpay: booking.paymentMethod === 'vnpay' ? (booking.paidAmount || 0) : 0,
-                                                        cash: booking.paymentMethod === 'cash' ? (booking.paidAmount || 0) : 0
-                                                    };
+                                        <div className="pt-3 border-t border-slate-50 dark:border-slate-800 text-center">
+                                            <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 rounded-full text-[10px] font-black text-slate-500 dark:text-slate-300 tracking-widest uppercase">
+                                                {nights} Ngày lưu trú
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
 
-                                                return (
-                                                    <div className="flex flex-col gap-1 py-1 border-b border-gray-100 mb-1 pb-2">
-                                                        <div className="flex justify-between items-center text-xs">
-                                                            <span className="text-gray-500 font-bold uppercase text-[9px]">Tổng đã nộp:</span>
-                                                            <span className="font-extrabold text-emerald-600">
-                                                                {new Intl.NumberFormat('vi-VN').format(booking.paidAmount || 0)}₫
-                                                            </span>
-                                                        </div>
-
-                                                        {/* Chi tiết từng nguồn tiền */}
-                                                        <div className="flex flex-col gap-0.5 mt-1 border-t border-dashed border-gray-200 pt-1">
-                                                            {breakdown.vnpay > 0 && (
-                                                                <div className="flex justify-between text-[10px]">
-                                                                    <span className="text-gray-400 italic">Đã cọc (VNPay):</span>
-                                                                    <span className="font-medium text-blue-600">
-                                                                        {new Intl.NumberFormat('vi-VN').format(breakdown.vnpay)}₫
-                                                                    </span>
-                                                                </div>
-                                                            )}
-                                                            {breakdown.cash > 0 && (
-                                                                <div className="flex justify-between text-[10px]">
-                                                                    <span className="text-gray-400 italic">Tiền mặt tại quầy:</span>
-                                                                    <span className="font-medium text-emerald-600">
-                                                                        {new Intl.NumberFormat('vi-VN').format(breakdown.cash)}₫
-                                                                    </span>
-                                                                </div>
-                                                            )}
-                                                            {breakdown.vnpay === 0 && breakdown.cash === 0 && (
-                                                                <div className="text-center py-1">
-                                                                    <span className="text-[9px] text-gray-400 italic">Chưa ghi nhận thanh toán</span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-                                            <div className="flex justify-between items-center pt-1 border-t border-gray-100">
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Số tiền cần thanh toán:</span>
-                                                <div className="flex flex-col items-end">
-                                                    <span className={`text-sm font-black ${booking.finalAmount <= (booking.paidAmount || 0) ? 'text-emerald-500' : 'text-rose-600'}`}>
-                                                        {booking.finalAmount <= (booking.paidAmount || 0) ? 'HOÀN TẤT' : `${new Intl.NumberFormat('vi-VN').format(booking.finalAmount - (booking.paidAmount || 0))}₫`}
-                                                    </span>
-                                                    {booking.status === 'checked_in' && booking.finalAmount > (booking.paidAmount || 0) && !isEditing && (
-                                                        <button
-                                                            onClick={() => { setIsAddingPayment(!isAddingPayment); setExtraAmount(booking.finalAmount - (booking.paidAmount || 0)); }}
-                                                            className="text-[10px] text-blue-600 font-bold hover:underline mt-1"
-                                                        >
-                                                            {isAddingPayment ? "Đóng" : "Thu thêm tại quầy →"}
-                                                        </button>
-                                                    )}
-                                                </div>
+                        {/* Financial Information */}
+                        <div className="space-y-6">
+                            {/* Room Allocation */}
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm min-h-[160px]">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Sản phẩm & Dịch vụ</h3>
+                                {isEditing ? (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-[9px] font-black text-slate-400 block mb-1.5 ml-1">LOẠI PHÒNG THUÊ</label>
+                                            <select
+                                                className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm font-bold ${roomTypeChanged ? 'border-amber-400 text-amber-600' : 'border-slate-200 dark:border-slate-700'}`}
+                                                value={editForm.roomTypeId}
+                                                onChange={(e) => setEditForm({ ...editForm, roomTypeId: e.target.value })}
+                                            >
+                                                {roomTypes.map((rt: any) => (
+                                                    <option key={rt._id} value={rt._id}>{rt.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black text-slate-400 block mb-1.5 ml-1 uppercase">Số lượng phòng</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold"
+                                                value={editForm.roomQuantity}
+                                                onChange={(e) => setEditForm({ ...editForm, roomQuantity: parseInt(e.target.value) })}
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-4">
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-500">
+                                                <span className="material-symbols-outlined text-2xl">bed</span>
                                             </div>
+                                            <div>
+                                                <p className="text-base font-black text-slate-700 dark:text-slate-100">{booking.roomTypeId?.name || booking.roomTypeInfo?.name || 'N/A'}</p>
+                                                <p className="text-xs font-bold text-slate-400 mt-0.5">Quy mô: {booking.roomQuantity} phòng</p>
+                                            </div>
+                                        </div>
+                                        {booking.details?.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                {booking.details.map((d: any) => (
+                                                    <div key={d._id} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-900/50 rounded-xl">
+                                                        <span className="material-symbols-outlined text-xs text-blue-500">meeting_room</span>
+                                                        <span className="text-[11px] font-black text-blue-600 dark:text-blue-400">P.{d.roomId?.roomNumber}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
-                                            {/* Thu thêm UI */}
-                                            {isAddingPayment && booking.status === 'checked_in' && !isEditing && (
-                                                <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg space-y-2 animate-in slide-in-from-top-2 duration-200">
-                                                    <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Ghi nhận thu tiền mặt</p>
+                            {/* Billing details */}
+                            <div className="bg-slate-900 dark:bg-slate-900/50 p-7 rounded-[28px] text-white shadow-xl relative overflow-hidden">
+                                <div className="absolute -right-8 -bottom-8 opacity-10">
+                                    <span className="material-symbols-outlined text-[120px]">payments</span>
+                                </div>
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Thanh toán</h3>
+
+                                <div className="space-y-4 relative z-10">
+                                    <div className="flex justify-between items-center text-slate-400 text-xs font-medium">
+                                        <span>Tạm tính ({booking.roomQuantity} phòng)</span>
+                                        <span>{new Intl.NumberFormat('vi-VN').format(booking.totalAmount)}₫</span>
+                                    </div>
+                                    {booking.discountAmount > 0 && (
+                                        <div className="flex justify-between items-center text-rose-400 text-xs font-bold">
+                                            <span>Giảm giá ({booking.promotionCode})</span>
+                                            <span>-{new Intl.NumberFormat('vi-VN').format(booking.discountAmount)}₫</span>
+                                        </div>
+                                    )}
+                                    <div className="pt-4 mt-4 border-t border-white/10 grid grid-cols-2 gap-4 items-end">
+                                        <div>
+                                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Tổng cộng chi phí</p>
+                                            <p className="text-2xl font-black text-white tracking-tight">{new Intl.NumberFormat('vi-VN').format(booking.finalAmount)}<span className="text-base ml-0.5">₫</span></p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[9px] font-black text-emerald-400/60 uppercase tracking-widest mb-1">Đã cọc / Đã thanh toán</p>
+                                            <p className="text-lg font-black text-emerald-400">{new Intl.NumberFormat('vi-VN').format(booking.paidAmount || 0)}₫</p>
+                                        </div>
+                                        <div className="col-span-2 mt-2 pt-4 border-t border-white/5 flex justify-between items-center bg-white/5 -mx-4 px-4 py-3 rounded-2xl">
+                                            <div className="flex flex-col">
+                                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-0.5">Cần thanh toán thêm</p>
+                                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">(Bao gồm phí phát sinh nếu có)</p>
+                                            </div>
+                                            <p className="text-2xl font-black text-rose-500">
+                                                {new Intl.NumberFormat('vi-VN').format(Math.max(0, booking.finalAmount - (booking.paidAmount || 0)))}₫
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Action inside Payment Card */}
+                                    {booking.finalAmount > (booking.paidAmount || 0) && booking.status === 'checked_in' && !isEditing && (
+                                        <div className="mt-6 pt-6 border-t border-white/5 space-y-3">
+                                            <button
+                                                onClick={() => { setIsAddingPayment(!isAddingPayment); setExtraAmount(booking.finalAmount - (booking.paidAmount || 0)); }}
+                                                className="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-white/10"
+                                            >
+                                                {isAddingPayment ? "Đóng trình thu phí" : "Thu thêm tại quầy →"}
+                                            </button>
+
+                                            {isAddingPayment && (
+                                                <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3 animate-in slide-in-from-top-4 duration-300">
                                                     <input
                                                         type="number"
-                                                        className="w-full px-3 py-1.5 border border-blue-200 rounded text-xs font-bold text-emerald-700"
-                                                        placeholder="Số tiền thu..."
+                                                        className="w-full px-4 py-2 bg-slate-800 border border-white/10 rounded-xl text-sm font-bold text-white outline-none"
+                                                        placeholder="Số tiền..."
                                                         value={extraAmount}
                                                         onChange={(e) => setExtraAmount(parseInt(e.target.value))}
                                                     />
                                                     <input
-                                                        className="w-full px-3 py-1.5 border border-blue-200 rounded text-[10px]"
-                                                        placeholder="Lý do thu (vd: phụ phí nâng cấp)..."
+                                                        className="w-full px-4 py-2 bg-slate-800 border border-white/10 rounded-xl text-xs text-slate-300 outline-none"
+                                                        placeholder="Lý do thu bổ sung..."
                                                         value={extraNote}
                                                         onChange={(e) => setExtraNote(e.target.value)}
                                                     />
                                                     <button
                                                         onClick={handleAddExtraPayment}
                                                         disabled={isUpdating || extraAmount <= 0}
-                                                        className="w-full py-1.5 bg-blue-600 text-white text-[10px] font-black rounded uppercase hover:bg-blue-700 transition"
+                                                        className="w-full py-2.5 bg-[#0050d4] hover:bg-[#0046bb] text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-[#0050d4]/20"
                                                     >
-                                                        {isUpdating ? "Đang xử lý..." : "Xác nhận thu tiền"}
+                                                        {isUpdating ? "Đang xử lý..." : "Xác nhận thu phí"}
                                                     </button>
                                                 </div>
                                             )}
-                                        </>
+                                        </div>
                                     )}
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Admin Notes & Special Requests */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6">
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Yêu cầu từ khách</p>
+                    {/* Bottom notes section */}
+                    <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group">
+                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Yêu cầu đặc biệt</h3>
                             {isEditing ? (
                                 <textarea
-                                    rows={3}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded text-sm italic bg-gray-50"
+                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium outline-none h-[100px]"
                                     value={editForm.specialRequests}
                                     onChange={(e) => setEditForm({ ...editForm, specialRequests: e.target.value })}
                                 />
                             ) : (
-                                <div className="bg-gray-50 p-4 rounded-lg min-h-[80px]">
-                                    <p className="text-sm text-gray-600 italic">{booking.specialRequests ? `"${booking.specialRequests}"` : "Không có yêu cầu đặc biệt."}</p>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-50 dark:border-slate-800">
+                                    <p className="text-sm text-slate-600 dark:text-slate-300 italic font-medium leading-relaxed">
+                                        {booking.specialRequests ? `"${booking.specialRequests}"` : "Khách hàng không có yêu cầu đặc biệt nào đi kèm."}
+                                    </p>
                                 </div>
                             )}
                         </div>
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest pl-1">Ghi chú của Admin</p>
+                        <div className="bg-rose-50/30 dark:bg-rose-900/10 p-6 rounded-[24px] border border-rose-100 dark:border-rose-900/30 shadow-sm">
+                            <h3 className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] mb-3">Ghi chú quản trị</h3>
                             {isEditing ? (
                                 <textarea
-                                    rows={3}
-                                    className="w-full px-3 py-2 border border-rose-100 rounded text-sm bg-rose-50 placeholder:text-rose-300"
-                                    placeholder="Lưu lại lý do sửa đổi hoặc ghi chú nội bộ..."
+                                    className="w-full p-4 bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-900/50 rounded-2xl text-sm font-bold text-rose-700 dark:text-rose-400 outline-none h-[100px]"
+                                    placeholder="Ghi chú quan trọng về đơn hàng này..."
                                     value={editForm.adminNote}
                                     onChange={(e) => setEditForm({ ...editForm, adminNote: e.target.value })}
                                 />
                             ) : (
-                                <div className="bg-rose-50 p-4 rounded-lg min-h-[80px] border border-rose-100">
-                                    <p className="text-sm text-rose-700 font-medium">{booking.adminNote || "Giao dịch an toàn, chưa có ghi chú thêm."}</p>
+                                <div className="p-4 bg-white/60 dark:bg-slate-800/60 rounded-2xl border border-white dark:border-slate-700">
+                                    <p className="text-sm text-rose-600 dark:text-rose-400 font-bold leading-relaxed">{booking.adminNote || "Chưa có ghi chú quản trị nội bộ nào được ghi nhận."}</p>
                                 </div>
                             )}
                         </div>
                     </div>
+                </div>
 
-                    {/* Actions */}
-                    <div className="border-t pt-6 pb-2">
-                        {isEditing ? (
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    onClick={() => setIsEditing(false)}
-                                    className="px-6 py-2 border border-gray-300 text-gray-600 font-bold rounded-lg hover:bg-gray-100 transition shadow-sm"
-                                >
-                                    Hủy bỏ
-                                </button>
-                                <button
-                                    onClick={handleAdminUpdate}
-                                    disabled={isUpdating}
-                                    className="px-8 py-2 bg-gray-900 text-white font-black rounded-lg hover:bg-black transition shadow-lg flex items-center gap-2"
-                                >
-                                    {isUpdating ? "Đang lưu..." : "Lưu thay đổi"}
-                                    {!isUpdating && <span className="material-symbols-outlined text-sm">save</span>}
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex flex-wrap gap-2">
-                                {booking.status === 'pending' && (
-                                    <>
-                                        <button onClick={() => { setSelectedRoomIds([]); setIsAssignModalOpen(true); }} disabled={isUpdating} className="px-5 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition shadow-md shadow-blue-200">
-                                            Gán phòng & Xác nhận
-                                        </button>
-                                        <button onClick={() => handleUpdateStatus(booking._id, 'cancelled')} disabled={isUpdating} className="px-5 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
-                                            Từ chối
-                                        </button>
-                                    </>
-                                )}
-
-                                {booking.status === 'confirmed' && (
-                                    <>
-                                        {isBeforeCheckIn(booking) && (
-                                            <button onClick={() => { const currentAssignedIds = booking.details?.map((d: any) => d.roomId?._id || d.roomId) || []; setSelectedRoomIds(currentAssignedIds); setIsAssignModalOpen(true); }} className="px-5 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
-                                                Đổi số phòng
-                                            </button>
-                                        )}
-                                        <button onClick={() => handleUpdateStatus(booking._id, 'checked_in')} disabled={isUpdating} className="px-5 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition shadow-md shadow-blue-200">
-                                            Thực hiện Check-in
-                                        </button>
-                                        <button onClick={() => handleUpdateStatus(booking._id, 'cancelled')} disabled={isUpdating} className="px-5 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
-                                            Hủy đặt phòng
-                                        </button>
-                                    </>
-                                )}
-
-                                {booking.status === 'checked_in' && (
-                                    <>
-                                        <button
-                                            onClick={() => handleUpdateStatus(booking._id, 'completed', 'paid')}
-                                            disabled={isUpdating || booking.finalAmount > (booking.paidAmount || 0)}
-                                            className="px-5 py-2 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 transition shadow-md shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            Check-out & Hoàn tất
-                                        </button>
-                                    </>
-                                )}
-
-                                {['checked_out', 'completed'].includes(booking.status) && (
-                                    <button onClick={() => handleExportInvoice(booking)} className="px-5 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-sm">receipt_long</span>
-                                        Xuất hóa đơn
+                {/* Footer Actions */}
+                <div className="bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 px-8 py-6">
+                    {isEditing ? (
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsEditing(false)}
+                                className="px-6 py-2.5 bg-slate-50 dark:bg-slate-700 text-slate-500 font-bold rounded-xl hover:bg-slate-100 transition-all"
+                            >
+                                Hủy thay đổi
+                            </button>
+                            <button
+                                onClick={handleAdminUpdate}
+                                disabled={isUpdating}
+                                className="px-10 py-2.5 bg-[#2c2f31] dark:bg-white text-white dark:text-slate-900 font-black rounded-xl shadow-lg hover:scale-[1.02] transition-all"
+                            >
+                                {isUpdating ? "Đang xử lý..." : "Lưu dữ liệu"}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap items-center gap-3">
+                            {booking.status === 'pending' && (
+                                <>
+                                    <button
+                                        onClick={() => { setSelectedRoomIds([]); setIsAssignModalOpen(true); }}
+                                        className="px-6 py-2.5 bg-[#0050d4] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-[#0050d4]/20 hover:bg-[#0046bb] transition-all"
+                                    >
+                                        Gán phòng & Xác nhận ngay
                                     </button>
-                                )}
-
-                                {isAdmin && (
-                                    <button onClick={() => handleDeleteBooking(booking._id)} className="px-5 py-2 border border-rose-200 text-rose-600 text-sm font-bold rounded-lg hover:bg-rose-50 transition ml-auto">
-                                        Xóa vĩnh viễn
+                                    <button
+                                        onClick={() => handleUpdateStatus(booking._id, 'cancelled')}
+                                        className="px-6 py-2.5 bg-slate-50 dark:bg-slate-700 text-slate-500 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-100 transition-all"
+                                    >
+                                        Hủy trình duyệt
                                     </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                                </>
+                            )}
+
+                            {booking.status === 'confirmed' && (
+                                <>
+                                    <button
+                                        onClick={() => { const currentAssignedIds = booking.details?.map((d: any) => d.roomId?._id || d.roomId) || []; setSelectedRoomIds(currentAssignedIds); setIsAssignModalOpen(true); }}
+                                        className="px-6 py-2.5 bg-slate-50 dark:bg-slate-700 text-[#2c2f31] dark:text-slate-100 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-100 transition-all border border-slate-100 dark:border-slate-600"
+                                    >
+                                        Cấu hình lại phòng
+                                    </button>
+                                    <button
+                                        onClick={() => handleUpdateStatus(booking._id, 'checked_in')}
+                                        className="px-8 py-2.5 bg-[#0050d4] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg hover:bg-[#0046bb] transition-all"
+                                    >
+                                        Xác nhận Check-in
+                                    </button>
+                                    <button
+                                        onClick={() => handleUpdateStatus(booking._id, 'cancelled')}
+                                        className="px-6 py-2.5 text-rose-500 font-bold text-xs uppercase tracking-wide hover:underline"
+                                    >
+                                        Hủy bỏ đơn này
+                                    </button>
+                                </>
+                            )}
+
+                            {booking.status === 'checked_in' && (
+                                <button
+                                    onClick={() => handleUpdateStatus(booking._id, 'completed', 'paid')}
+                                    disabled={isUpdating || booking.finalAmount > (booking.paidAmount || 0)}
+                                    className="px-10 py-3 bg-emerald-600 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:grayscale"
+                                >
+                                    {booking.finalAmount > (booking.paidAmount || 0) ? "Vui lòng thu đủ tiền để Check-out" : "Hoàn tất Checkout đơn hàng"}
+                                </button>
+                            )}
+
+                            {['completed'].includes(booking.status) && (
+                                <button
+                                    onClick={() => handleExportInvoice(booking)}
+                                    className="px-8 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-xl">receipt_long</span>
+                                    Xuất hóa đơn VAT
+                                </button>
+                            )}
+
+                            {isAdmin && (
+                                <button
+                                    onClick={() => handleDeleteBooking(booking._id)}
+                                    className="px-4 py-2 text-slate-300 hover:text-rose-500 font-bold text-[10px] uppercase tracking-widest ml-auto transition-colors"
+                                >
+                                    Khôi phục/Xóa vĩnh viễn
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

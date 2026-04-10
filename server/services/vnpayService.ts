@@ -48,7 +48,7 @@ export const generateVNPayPaymentUrl = (
 };
 
 /**
- * Service xác thực chữ ký trả về từ VNPay
+ * Service xác thực chữ ký trả về từ VNPay Chatbot
  */
 export const verifyVNPaySignature = (queryParams: Record<string, any>) => {
     let vnp_Params: Record<string, any> = { ...queryParams };

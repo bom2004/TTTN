@@ -69,6 +69,11 @@ export const processSaveUser = async (id: string | undefined, data: any, file?: 
         }
     }
 
+    // Xử lý cờ isActive
+    if (updateData.isActive !== undefined) {
+        updateData.isActive = updateData.isActive === 'true' || updateData.isActive === true;
+    }
+
     if (id) {
         // Cập nhật người dùng cũ
         // Kiểm tra email trùng lắp (ngoại trừ chính mình)

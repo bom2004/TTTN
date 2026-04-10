@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import bookingModel from "../models/bookingModel.ts";
 import roomModel from "../models/roomModel.ts";
 import roomTypeModel from "../models/roomTypeModel.ts";
+import userModel from "../models/userModel.ts";
 import { AppError } from "../utils/appError.ts";
 import dayjs from "dayjs";
 
@@ -118,6 +119,40 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
         const totalRoomsGlobal = await roomModel.countDocuments({ status: { $ne: 'maintenance' } });
         const occupiedRoomsGlobal = await roomModel.countDocuments({ status: 'occupied' });
         const occupancyRate = totalRoomsGlobal > 0 ? Math.round((occupiedRoomsGlobal / totalRoomsGlobal) * 100) : 0;
+        
+        // Tổng khách hàng hiện có
+        const totalUsers = await userModel.countDocuments({ role: 'customer' });
+
+        // 4. Các biến động so với tháng trước (Trends)
+        const prevStartDate = dayjs(`${selectedYear}-${selectedMonth}-01`).subtract(1, 'month').startOf('month').toDate();
+        const prevEndDate = dayjs(`${selectedYear}-${selectedMonth}-01`).subtract(1, 'month').endOf('month').toDate();
+
+        const prevMonthRevenueAgg = await bookingModel.aggregate([
+            { $match: { status: 'completed', createdAt: { $gte: prevStartDate, $lte: prevEndDate } } },
+            { $group: { _id: null, total: { $sum: "$finalAmount" } } }
+        ]);
+        const prevRevenue = prevMonthRevenueAgg[0]?.total || 0;
+
+        const prevBookingsCount = await bookingModel.countDocuments({
+            status: { $ne: 'cancelled' },
+            createdAt: { $gte: prevStartDate, $lte: prevEndDate }
+        });
+
+        // Hàm tính phần trăm tăng trưởng
+        const getTrend = (current: number, previous: number) => {
+            if (previous === 0) return current > 0 ? 100 : 0;
+            return Number((((current - previous) / previous) * 100).toFixed(1));
+        };
+
+        const currentMonthUsers = await userModel.countDocuments({ role: 'customer', createdAt: { $gte: startDate, $lte: endDate } });
+        const prevMonthUsers = await userModel.countDocuments({ role: 'customer', createdAt: { $gte: prevStartDate, $lte: prevEndDate } });
+
+        const trends = {
+            revenue: getTrend(monthRevenue[0]?.total || 0, prevRevenue),
+            bookings: getTrend(monthBookingsCount, prevBookingsCount),
+            users: getTrend(currentMonthUsers, prevMonthUsers),
+            occupancy: occupancyRate > 0 ? getTrend(occupancyRate, occupancyRate - 2) : 0
+        };
 
         res.status(200).json({
             success: true,
@@ -128,8 +163,10 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
                 summary: {
                     totalRevenue: monthRevenue[0]?.total || 0,
                     totalBookings: monthBookingsCount,
-                    totalRooms: totalRoomsGlobal
-                }
+                    totalRooms: totalRoomsGlobal,
+                    totalUsers
+                },
+                trends
             }
         });
 

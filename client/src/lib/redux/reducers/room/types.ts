@@ -54,4 +54,5 @@ export interface CreateRoomPayload {
 
 export interface UpdateRoomPayload extends Partial<CreateRoomPayload> {
     id: string;
+    formData: FormData;
 }
