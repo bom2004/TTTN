@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
-import { useAppDispatch } from '../../../lib/redux/store';
+import { useAppDispatch, useAppSelector } from '../../../lib/redux/store';
 import { adminUpdateBookingThunk, addExtraPaymentThunk } from '../../../lib/redux/reducers/booking';
+import { selectAuthUser } from '../../../lib/redux/reducers/auth/selectors';
 
 interface BookingDetailsProps {
     booking: any;
@@ -11,7 +12,7 @@ interface BookingDetailsProps {
     isUpdating: boolean;
     handleUpdateStatus: (id: string, status: string, paymentStatus?: string) => void;
     handleDeleteBooking: (id: string) => void;
-    handleExportInvoice: (booking: any) => void;
+    handleExportInvoice: (booking: any, staffName?: string) => void;
     setSelectedRoomIds: (ids: string[]) => void;
     setIsAssignModalOpen: (val: boolean) => void;
     fetchBookings: () => void;
@@ -31,6 +32,7 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
     fetchBookings
 }) => {
     const dispatch = useAppDispatch();
+    const user = useAppSelector(selectAuthUser);
 
     // Local States for Editing
     const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -114,7 +116,7 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
             case 'pending': return { label: 'Chờ duyệt', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', dot: 'bg-amber-500' };
             case 'confirmed': return { label: 'Xác nhận', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', dot: 'bg-blue-500' };
             case 'checked_in': return { label: 'Đã nhận phòng', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', dot: 'bg-indigo-500' };
-            case 'completed': return { label: 'Hoàn thành', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' };
+            case 'completed': return { label: 'Đã trả phòng (Hoàn thành)', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' };
             case 'cancelled': return { label: 'Đã hủy', color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', dot: 'bg-rose-500' };
             default: return { label: status, color: 'bg-gray-100 text-gray-700', dot: 'bg-gray-500' };
         }
@@ -252,7 +254,7 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                                     <div className="flex flex-col gap-4">
                                         <div className="flex items-center justify-between">
                                             <div className="flex flex-col">
-                                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider mb-1">Check-in</span>
+                                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider mb-1">Ngày nhận phòng</span>
                                                 <span className="text-base font-black text-slate-700 dark:text-slate-200">{new Date(booking.checkInDate).toLocaleDateString('vi-VN')}</span>
                                                 <span className="text-xs font-bold text-blue-500 mt-0.5">{booking.checkInTime || '14:00'}</span>
                                             </div>
@@ -260,7 +262,7 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                                                 <span className="material-symbols-outlined text-slate-300">double_arrow</span>
                                             </div>
                                             <div className="flex flex-col items-end text-right">
-                                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider mb-1">Check-out</span>
+                                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider mb-1">Ngày trả phòng</span>
                                                 <span className="text-base font-black text-slate-700 dark:text-slate-200">{new Date(booking.checkOutDate).toLocaleDateString('vi-VN')}</span>
                                                 <span className="text-xs font-bold text-slate-400 mt-0.5">12:00</span>
                                             </div>
@@ -273,6 +275,44 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                                     </div>
                                 )}
                             </div>
+
+                            {/* Service Orders Section */}
+                            {booking.serviceOrders?.length > 0 && (
+                                <div className="bg-white dark:bg-slate-900 p-6 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dịch vụ đã sử dụng</h3>
+                                        <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 rounded-md">
+                                            {booking.serviceOrders.length} đơn dịch vụ
+                                        </span>
+                                    </div>
+                                    <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {booking.serviceOrders.map((order: any) => (
+                                            <div key={order._id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <span className="text-[10px] font-black text-slate-400">#{order._id.slice(-6).toUpperCase()}</span>
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                                        order.status === 'completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                                                    }`}>
+                                                        {order.status === 'completed' ? 'Hoàn thành' : 'Đang xử lý'}
+                                                    </span>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {order.items.map((item: any, idx: number) => (
+                                                        <div key={idx} className="flex justify-between text-xs font-medium">
+                                                            <span className="text-slate-600 dark:text-slate-300">{item.serviceId?.name} <span className="text-slate-400 text-[10px]">x{item.quantity}</span></span>
+                                                            <span className="text-slate-700 dark:text-slate-200">{new Intl.NumberFormat('vi-VN').format(item.priceAtOrder * item.quantity)}₫</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-700/50 flex justify-between items-center font-bold">
+                                                    <span className="text-[10px] text-slate-400 uppercase">Tổng đơn</span>
+                                                    <span className="text-xs text-indigo-600 dark:text-indigo-400">{new Intl.NumberFormat('vi-VN').format(order.totalAmount)}₫</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Financial Information */}
@@ -339,9 +379,15 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
 
                                 <div className="space-y-4 relative z-10">
                                     <div className="flex justify-between items-center text-slate-400 text-xs font-medium">
-                                        <span>Tạm tính ({booking.roomQuantity} phòng)</span>
+                                        <span>Tiền phòng ({booking.roomQuantity} phòng x {nights} đêm)</span>
                                         <span>{new Intl.NumberFormat('vi-VN').format(booking.totalAmount)}₫</span>
                                     </div>
+                                    {booking.totalServiceAmount > 0 && (
+                                        <div className="flex justify-between items-center text-indigo-300 text-xs font-medium">
+                                            <span>Tiền dịch vụ (Ăn uống/Giao phòng)</span>
+                                            <span>+{new Intl.NumberFormat('vi-VN').format(booking.totalServiceAmount)}₫</span>
+                                        </div>
+                                    )}
                                     {booking.discountAmount > 0 && (
                                         <div className="flex justify-between items-center text-rose-400 text-xs font-bold">
                                             <span>Giảm giá ({booking.promotionCode})</span>
@@ -350,8 +396,11 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                                     )}
                                     <div className="pt-4 mt-4 border-t border-white/10 grid grid-cols-2 gap-4 items-end">
                                         <div>
-                                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Tổng cộng chi phí</p>
-                                            <p className="text-2xl font-black text-white tracking-tight">{new Intl.NumberFormat('vi-VN').format(booking.finalAmount)}<span className="text-base ml-0.5">₫</span></p>
+                                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Tổng phí lưu trú & DV</p>
+                                            <p className="text-2xl font-black text-white tracking-tight">
+                                                {new Intl.NumberFormat('vi-VN').format(booking.finalAmount + (booking.totalServiceAmount || 0))}
+                                                <span className="text-base ml-0.5">₫</span>
+                                            </p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[9px] font-black text-emerald-400/60 uppercase tracking-widest mb-1">Đã cọc / Đã thanh toán</p>
@@ -363,7 +412,7 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                                                 <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">(Bao gồm phí phát sinh nếu có)</p>
                                             </div>
                                             <p className="text-2xl font-black text-rose-500">
-                                                {new Intl.NumberFormat('vi-VN').format(Math.max(0, booking.finalAmount - (booking.paidAmount || 0)))}₫
+                                                {new Intl.NumberFormat('vi-VN').format(Math.max(0, (booking.finalAmount + (booking.totalServiceAmount || 0)) - (booking.paidAmount || 0)))}₫
                                             </p>
                                         </div>
                                     </div>
@@ -372,7 +421,11 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                                     {booking.finalAmount > (booking.paidAmount || 0) && booking.status === 'checked_in' && !isEditing && (
                                         <div className="mt-6 pt-6 border-t border-white/5 space-y-3">
                                             <button
-                                                onClick={() => { setIsAddingPayment(!isAddingPayment); setExtraAmount(booking.finalAmount - (booking.paidAmount || 0)); }}
+                                                onClick={() => { 
+                                                    setIsAddingPayment(!isAddingPayment); 
+                                                    const remaining = (booking.finalAmount + (booking.totalServiceAmount || 0)) - (booking.paidAmount || 0);
+                                                    setExtraAmount(Math.max(0, remaining)); 
+                                                }}
                                                 className="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-white/10"
                                             >
                                                 {isAddingPayment ? "Đóng trình thu phí" : "Thu thêm tại quầy →"}
@@ -494,7 +547,7 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                                         onClick={() => handleUpdateStatus(booking._id, 'checked_in')}
                                         className="px-8 py-2.5 bg-[#0050d4] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg hover:bg-[#0046bb] transition-all"
                                     >
-                                        Xác nhận Check-in
+                                        Xác nhận Nhận phòng
                                     </button>
                                     <button
                                         onClick={() => handleUpdateStatus(booking._id, 'cancelled')}
@@ -508,16 +561,16 @@ const BookingDetails: React.FC<BookingDetailsProps> = ({
                             {booking.status === 'checked_in' && (
                                 <button
                                     onClick={() => handleUpdateStatus(booking._id, 'completed', 'paid')}
-                                    disabled={isUpdating || booking.finalAmount > (booking.paidAmount || 0)}
+                                    disabled={isUpdating || (booking.finalAmount + (booking.totalServiceAmount || 0)) > (booking.paidAmount || 0)}
                                     className="px-10 py-3 bg-emerald-600 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:grayscale"
                                 >
-                                    {booking.finalAmount > (booking.paidAmount || 0) ? "Vui lòng thu đủ tiền để Check-out" : "Hoàn tất Checkout đơn hàng"}
+                                    {(booking.finalAmount + (booking.totalServiceAmount || 0)) > (booking.paidAmount || 0) ? "Vui lòng thu đủ tiền để Trả phòng" : "Hoàn tất Trả phòng đơn hàng"}
                                 </button>
                             )}
 
                             {['completed'].includes(booking.status) && (
                                 <button
-                                    onClick={() => handleExportInvoice(booking)}
+                                    onClick={() => handleExportInvoice(booking, user?.full_name)}
                                     className="px-8 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2"
                                 >
                                     <span className="material-symbols-outlined text-xl">receipt_long</span>

@@ -16,6 +16,8 @@ import { emitToUser, emitToAll } from "../socket.ts";
 import { updateUserMembership } from "../services/userService.ts";
 import { getBookingConfirmationTemplate } from "../utils/emailTemplates.ts";
 import userModel from "../models/userModel.ts";
+import serviceOrderModel from "../models/servicebooking/serviceOrderModel.ts";
+import roomModel from "../models/roomModel.ts";
 
 /**
  * Controller: Tạo đơn đặt phòng mới
@@ -187,9 +189,18 @@ export const getAllBookings = async (req: Request, res: Response): Promise<void>
             detailsMap[key].push(d);
         });
 
-        const result = bookings.map(b => ({
-            ...b.toObject(),
-            details: detailsMap[String(b._id)] || []
+        const result = await Promise.all(bookings.map(async (b) => {
+            const serviceOrders = await serviceOrderModel.find({ 
+                bookingId: b._id,
+                status: { $ne: 'cancelled' }
+            }).populate('items.serviceId');
+
+            return {
+                ...b.toObject(),
+                details: detailsMap[String(b._id)] || [],
+                serviceOrders,
+                totalServiceAmount: b.serviceAmount || 0 // Sử dụng trường persist đã thêm hoặc tính trực tiếp
+            };
         }));
 
         res.json({ success: true, data: result });
@@ -208,13 +219,23 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
         const populatedBookings = await Promise.all(
             bookings.map(async (booking) => {
                 const details = await bookingDetailModel.find({ bookingId: booking._id }).populate('roomId');
+                const serviceOrders = await serviceOrderModel.find({ 
+                    bookingId: booking._id,
+                    status: { $ne: 'cancelled' }
+                }).populate('items.serviceId');
 
-                // Populate thêm thông tin loại phòng
+                // Tính tiền dịch vụ gộp vào hóa đơn phòng (chưa thanh toán)
+                const serviceChargedToRoom = serviceOrders
+                    .filter(so => so.paymentStatus === 'charged_to_room')
+                    .reduce((sum, so) => sum + (so.totalAmount || 0), 0);
+
                 const populatedBooking = await bookingModel.findById(booking._id).populate('roomTypeId');
 
                 return {
                     ...booking.toObject(),
                     details,
+                    serviceOrders,
+                    totalServiceAmount: serviceChargedToRoom,
                     roomTypeInfo: populatedBooking?.roomTypeId
                 };
             })
@@ -240,7 +261,23 @@ export const getBookingById = async (req: Request, res: Response): Promise<void>
         }
 
         const details = await bookingDetailModel.find({ bookingId: booking._id }).populate('roomId');
-        res.json({ success: true, data: { ...booking.toObject(), details, roomTypeInfo: booking.roomTypeId } });
+        const serviceOrders = await serviceOrderModel.find({ 
+            bookingId: booking._id,
+            status: { $ne: 'cancelled' }
+        }).populate('items.serviceId');
+
+        // Tính tiền dịch vụ gộp vào hóa đơn phòng (chưa thanh toán)
+        const serviceChargedToRoom = serviceOrders
+            .filter(so => so.paymentStatus === 'charged_to_room')
+            .reduce((sum, so) => sum + (so.totalAmount || 0), 0);
+
+        res.json({ success: true, data: { 
+            ...booking.toObject(), 
+            details, 
+            serviceOrders,
+            totalServiceAmount: serviceChargedToRoom,
+            roomTypeInfo: booking.roomTypeId 
+        } });
     } catch (error) {
         res.status(500).json({ success: false, message: (error as Error).message });
     }
@@ -287,6 +324,27 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
 
         if (detailStatus !== 'waiting') {
             await bookingDetailModel.updateMany({ bookingId: req.params.id }, { roomStatus: detailStatus });
+            
+            // ĐỒNG BỘ TRẠNG THÁI PHÒNG (Room Model)
+            const details = await bookingDetailModel.find({ bookingId: req.params.id });
+            const roomIds = details.map(d => d.roomId);
+            
+            if (roomIds.length > 0) {
+                let targetRoomStatus = 'available';
+                if (status === 'checked_in') targetRoomStatus = 'occupied';
+                else if (['checked_out', 'completed', 'cancelled'].includes(status)) targetRoomStatus = 'available';
+                
+                // Cập nhật từng phòng
+                await roomModel.updateMany(
+                    { _id: { $in: roomIds }, status: { $ne: 'maintenance' } }, // Không đổi trạng thái nếu đang bảo trì
+                    { status: targetRoomStatus }
+                );
+
+                // Notify qua socket để FE cập nhật sơ đồ phòng
+                roomIds.forEach(id => {
+                    emitToAll('room_status_changed', { id: String(id), status: targetRoomStatus });
+                });
+            }
         }
 
         // Logic Hoàn tiền nếu Admin hủy: Áp dụng cùng tiêu chuẩn 24h trước Check-in hoặc 30p sau khi đặt (Grace period)
@@ -347,6 +405,20 @@ export const cancelBooking = async (req: Request, res: Response): Promise<void> 
         booking.status = 'cancelled';
         await booking.save({ session });
         await bookingDetailModel.updateMany({ bookingId: id }, { roomStatus: 'cancelled' }).session(session);
+
+        // Giải phóng trạng thái phòng thực tế
+        const details = await bookingDetailModel.find({ bookingId: id }).session(session);
+        const roomIds = details.map(d => d.roomId);
+        if (roomIds.length > 0) {
+            await roomModel.updateMany(
+                { _id: { $in: roomIds }, status: { $ne: 'maintenance' } },
+                { status: 'available' }
+            ).session(session);
+            
+            roomIds.forEach(rId => {
+                emitToAll('room_status_changed', { id: String(rId), status: 'available' });
+            });
+        }
 
         await session.commitTransaction();
 

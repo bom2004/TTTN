@@ -1,11 +1,17 @@
 import React from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { useAppSelector } from '../../lib/redux/store';
+import { useAppSelector, useAppDispatch } from '../../lib/redux/store';
 import { selectAuthUser } from '../../lib/redux/reducers/auth/selectors';
+import { logout } from '../../lib/redux/reducers/auth/reducer';
 
 const SidebarAdmin: React.FC = () => {
+    const dispatch = useAppDispatch();
     const user = useAppSelector(selectAuthUser);
     const role = user?.role;
+
+    const handleLogout = () => {
+        dispatch(logout());
+    };
 
     // Phân quyền hiển thị
     const canManageStaff = role === 'admin' || role === 'staff';
@@ -19,10 +25,12 @@ const SidebarAdmin: React.FC = () => {
         { path: '/owner/user', label: 'Quản lý người dùng', icon: 'group', show: canManageUsers },
         { path: '/owner/staff', label: 'Quản lý nhân viên', icon: 'badge', show: canManageStaff },
         { path: '/owner/bookings', label: 'Quản lý đặt phòng', icon: 'calendar_month', show: canManageBookings },
-        { path: '/owner/comments', label: 'Quản lý đánh giá', icon: 'rate_review', show: true },
+        { path: '/owner/services', label: 'Quản lý dịch vụ', icon: 'room_service', show: true },
+        { path: '/owner/service-orders', label: 'Đơn dịch vụ', icon: 'receipt_long', show: true },
         { path: '/owner/rooms', label: 'Quản lý phòng', icon: 'bed', show: canManageRooms },
         { path: '/owner/room-types', label: 'Quản lý loại phòng', icon: 'category', show: canManageRooms },
         { path: '/owner/promotions', label: 'Quản lý khuyến mãi', icon: 'sell', show: canManagePromotions },
+        { path: '/owner/comments', label: 'Quản lý đánh giá', icon: 'rate_review', show: true },
         { path: '/owner/chatbot', label: 'Quản lý Chatbot', icon: 'smart_toy', show: true }
     ];
 
@@ -75,7 +83,7 @@ const SidebarAdmin: React.FC = () => {
             </nav>
 
             {/* User Info Section */}
-            <div className="p-4 border-t border-slate-200 bg-gradient-to-b from-white to-slate-50/80 shadow-inner">
+            <Link to="/owner/profile" className="p-4 border-t border-slate-200 bg-gradient-to-b from-white to-slate-50/80 shadow-inner block">
                 <div className="flex items-center gap-3 px-2 py-3 rounded-xl hover:bg-blue-50/40 transition-all duration-200 group cursor-pointer">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center text-white font-extrabold text-base shadow-md shadow-primary/30 group-hover:shadow-lg group-hover:scale-105 transition-all duration-300 overflow-hidden">
                         {user?.avatar ? (
@@ -90,20 +98,22 @@ const SidebarAdmin: React.FC = () => {
                         </p>
                         <p className="text-xs font-bold text-slate-500 truncate capitalize mt-0.5">
                             {role === 'admin' ? 'Quản trị viên cấp cao' :
-                                    role === 'staff' ? 'Nhân viên' : 'Người dùng'}
+                                role === 'staff' ? 'Nhân viên' : 'Người dùng'}
                         </p>
                     </div>
                     <span className="material-symbols-outlined text-slate-400 text-lg group-hover:text-primary transition-colors">
                         chevron_right
                     </span>
                 </div>
-                <Link
-                    to="/"
-                    className="flex items-center justify-center px-3 py-2.5 mt-3 text-slate-600 text-sm font-bold rounded-xl hover:text-white hover:bg-gradient-to-r hover:from-error hover:to-error-dim transition-all duration-200 hover:shadow-lg hover:shadow-error/20 group"
+            </Link>
+            <div className="px-4 pb-4">
+                <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center px-3 py-2.5 text-slate-500 text-sm font-bold rounded-xl hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-red-600 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/30 group"
                 >
-                    <span className="material-symbols-outlined mr-2 text-[20px] group-hover:rotate-180 transition-transform duration-300">logout</span>
+                    <span className="material-symbols-outlined mr-2 text-[20px] group-hover:rotate-180 transition-transform duration-500">logout</span>
                     <span>Thoát quản trị</span>
-                </Link>
+                </button>
             </div>
         </aside>
     );

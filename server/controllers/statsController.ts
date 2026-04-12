@@ -35,7 +35,7 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
                         month: { $month: "$createdAt" },
                         quarter: { $ceil: { $divide: [{ $month: "$createdAt" }, 3] } }
                     },
-                    revenue: { $sum: "$finalAmount" },
+                    revenue: { $sum: { $add: ["$finalAmount", { $ifNull: ["$serviceAmount", 0] }] } },
                     bookings: { $sum: 1 }
                 }
             },
@@ -107,7 +107,7 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
                     createdAt: { $gte: startDate, $lte: endDate }
                 } 
             },
-            { $group: { _id: null, total: { $sum: "$finalAmount" } } }
+            { $group: { _id: null, total: { $sum: { $add: ["$finalAmount", { $ifNull: ["$serviceAmount", 0] }] } } } }
         ]);
 
         const monthBookingsCount = await bookingModel.countDocuments({
@@ -129,7 +129,7 @@ export const getAdminStats = async (req: Request, res: Response, next: NextFunct
 
         const prevMonthRevenueAgg = await bookingModel.aggregate([
             { $match: { status: 'completed', createdAt: { $gte: prevStartDate, $lte: prevEndDate } } },
-            { $group: { _id: null, total: { $sum: "$finalAmount" } } }
+            { $group: { _id: null, total: { $sum: { $add: ["$finalAmount", { $ifNull: ["$serviceAmount", 0] }] } } } }
         ]);
         const prevRevenue = prevMonthRevenueAgg[0]?.total || 0;
 

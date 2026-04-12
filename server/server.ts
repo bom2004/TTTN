@@ -13,6 +13,7 @@ import bookingRouter from "./routes/bookingRoute.ts";
 import commentRouter from "./routes/commentRoute.ts";
 import statsRouter from "./routes/statsRoute.ts";
 import chatRouter from "./routes/chatRoutes.ts";
+import serviceBookingRouter from "./routes/serviceBookingRoute.ts";
 
 import { createServer } from 'http';
 import { initSocket } from './socket.ts';
@@ -46,6 +47,7 @@ app.use("/api/search", searchRouter);
 app.use("/api/bookings", bookingRouter);
 app.use("/api/comments", commentRouter);
 app.use("/api/chat", chatRouter);
+app.use("/api/service-bookings", serviceBookingRouter);
 
 app.get('/', (_req: Request, res: Response) => res.send('API is working'));
 

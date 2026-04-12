@@ -7,7 +7,7 @@ export const selectAuthError = (state: RootState) => state.auth.error;
 export const selectIsLoggedIn = (state: RootState) => !!state.auth.user;
 export const selectUserRole = (state: RootState) => state.auth.user?.role ?? null;
 export const selectIsAdmin = (state: RootState) =>
-    state.auth.user?.role === 'admin' || state.auth.user?.role === 'hotelOwner';
+    state.auth.user?.role === 'admin';
 
 export const selectIsStaff = (state: RootState) =>
-    ['staff', 'receptionist', 'accountant', 'admin'].includes(state.auth.user?.role || '');
+    ['staff', 'admin'].includes(state.auth.user?.role || '');

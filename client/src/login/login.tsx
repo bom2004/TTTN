@@ -4,17 +4,36 @@ import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { UserData } from '../types';
 
-import { useAppDispatch } from '../lib/redux/store';
+import { useAppDispatch, useAppSelector } from '../lib/redux/store';
 import { loginThunk, sendOTPThunk, verifyOTPThunk } from '../lib/redux/reducers/auth';
+import { selectAuthUser, selectIsAdmin, selectIsStaff } from '../lib/redux/reducers/auth/selectors';
+import { useEffect } from 'react';
 
 const Login: React.FC = () => {
 
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
+    const user = useAppSelector(selectAuthUser);
+    const isAdmin = useAppSelector(selectIsAdmin);
+    const isStaff = useAppSelector(selectIsStaff);
+
     const [isOtpMode, setIsOtpMode] = useState<boolean>(false);
     const [otpSent, setOtpSent] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(false);
     const [errorMsg, setErrorMsg] = useState<string>('');
+
+    // Chuyển hướng nếu đã đăng nhập rồi
+    useEffect(() => {
+        if (user) {
+            if (isAdmin) {
+                navigate('/owner');
+            } else if (isStaff) {
+                navigate('/staff');
+            } else {
+                navigate('/');
+            }
+        }
+    }, [user, isAdmin, isStaff, navigate]);
 
     const [formData, setFormData] = useState({
         email: '',
@@ -30,6 +49,7 @@ const Login: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
         setLoading(true);
+        setErrorMsg('');
         try {
             const data = await dispatch(loginThunk({
                 email: formData.email,
@@ -38,13 +58,13 @@ const Login: React.FC = () => {
 
             if (data.success) {
                 toast.success("Đăng nhập thành công!");
-                window.location.href = '/';
+                // Không gọi navigate() ở đây — để useEffect lắng nghe user xử lý
             } else {
-                toast.error(data.message);
+                setErrorMsg(data.message || 'Đăng nhập thất bại');
             }
         } catch (error: any) {
-            console.error(error);
-            setErrorMsg(error || "Tên đăng nhập hoặc mật khẩu không chính xác");
+            const msg = typeof error === 'string' ? error : 'Tên đăng nhập hoặc mật khẩu không chính xác';
+            setErrorMsg(msg);
         } finally {
             setLoading(false);
         }
@@ -81,19 +101,11 @@ const Login: React.FC = () => {
 
             if (data.success) {
                 toast.success("Xác thực & Đăng nhập thành công");
-
-                const userData = data.userData;
-                if (userData?.role === 'staff') {
-                    window.location.href = '/staff';
-                } else if (userData?.role === 'admin' || userData?.role === 'hotelOwner') {
-                    window.location.href = '/owner';
-                } else {
-                    window.location.href = '/';
-                }
+                // useEffect sẽ tự xử lý chuyển trang
             }
         } catch (error: any) {
-            console.error(error);
-            toast.error(error || "Mã OTP không đúng");
+            const msg = typeof error === 'string' ? error : 'Mã OTP không đúng hoặc đã hết hạn';
+            toast.error(msg);
         } finally {
             setLoading(false);
         }

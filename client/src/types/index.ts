@@ -4,7 +4,7 @@ export interface UserData {
     full_name: string;
     email: string;
     phone?: string;
-    role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
+    role: 'customer' | 'staff' | 'admin';
     avatar: string;
     totalSpent: number;
     membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';

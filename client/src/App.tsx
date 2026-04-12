@@ -26,6 +26,10 @@ const PromotionAdmin = lazy(() => import("./admin/dashboard/PromotionAdmin"));
 const StaffAdmin = lazy(() => import("./admin/dashboard/StaffAdmin"));
 const CommentAdmin = lazy(() => import("./admin/dashboard/commentadmin"));
 const ChatbotAdmin = lazy(() => import("./admin/dashboard/chatbotAdmin"));
+const PersonalDetailsAdmin = lazy(() => import("./admin/dashboard/PersonalDetailsAdmin"));
+const ServiceAdmin = lazy(() => import("./admin/dashboard/servicebooking/ServiceAdmin"));
+const ServiceOrdersAdmin = lazy(() => import("./admin/dashboard/servicebooking/ServiceOrdersAdmin"));
+const CreateService = lazy(() => import("./admin/dashboard/servicebooking/CreateService"));
 
 
 // Lazy Loaded Pages (Pages) cho Staff
@@ -34,7 +38,8 @@ const RoomStaff = lazy(() => import("./Staff/dashboard/RoomStaff"));
 const RoomTypeStaff = lazy(() => import("./Staff/dashboard/RoomTypeStaff"));
 const BookingStaff = lazy(() => import("./Staff/dashboard/booking/BookingStaff"));
 const UserStaff = lazy(() => import("./Staff/dashboard/UserStaff"));
-const StaffManager = lazy(() => import("./Staff/dashboard/staff"));
+
+const PersonalDetailsStaff = lazy(() => import("./Staff/dashboard/PersonalDetailsStaff"));
 
 // Shared Components / Features
 const Promotions = lazy(() => import("./components/promotion/Promotions"));
@@ -46,6 +51,7 @@ const GlobalSearch = lazy(() => import("./components/Search/GlobalSearch"));
 const SearchPage = lazy(() => import("./components/Search/Searchpage"));
 const PaymentBooking = lazy(() => import("./components/booking/Paymentbooking"));
 const Orderpayment = lazy(() => import("./components/booking/Orderpayment"));
+const ServicesPage = lazy(() => import("./components/servicebooking/ServicesPage"));
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -73,6 +79,11 @@ const App: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
+  // Chuyển hướng tự động nhân viên/quản lý nếu cố tình vào giao diện khách hàng
+  if ((isAdmin || isStaff) && !isAdminPath && !isStaffPath && location.pathname !== '/login') {
+    return <Navigate to={isAdmin ? "/owner" : "/staff"} replace />;
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <ToastContainer
@@ -96,13 +107,17 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/owner" element={<HomeAdmin />} />
                 <Route path="/owner/bookings" element={<BookingStaff />} />
-                <Route path="/owner/user" element={(user?.role === 'admin' || user?.role === 'hotelOwner') ? <UserAdmin /> : <Navigate to="/owner" replace />} />
+                <Route path="/owner/user" element={(user?.role === 'admin') ? <UserAdmin /> : <Navigate to="/owner" replace />} />
                 <Route path="/owner/staff" element={<StaffAdmin />} />
                 <Route path="/owner/room-types" element={<RoomTypeAdmin />} />
                 <Route path="/owner/rooms" element={<RoomAdmin />} />
                 <Route path="/owner/promotions" element={<PromotionAdmin />} />
                 <Route path="/owner/comments" element={<CommentAdmin />} />
                 <Route path="/owner/chatbot" element={<ChatbotAdmin />} />
+                <Route path="/owner/services" element={<ServiceAdmin />} />
+                <Route path="/owner/service-orders" element={<ServiceOrdersAdmin />} />
+                <Route path="/owner/service-orders/create" element={<CreateService />} />
+                <Route path="/owner/profile" element={<PersonalDetailsAdmin />} />
               </Routes>
 
             </main>
@@ -117,7 +132,10 @@ const App: React.FC = () => {
                 <Route path="/staff/rooms" element={<RoomStaff />} />
                 <Route path="/staff/room-types" element={<RoomTypeStaff />} />
                 <Route path="/staff/users" element={<UserStaff />} />
-                <Route path="/staff/manage-staff" element={<StaffManager />} />
+                <Route path="/staff/service-orders" element={<ServiceOrdersAdmin />} />
+                <Route path="/staff/service-orders/create" element={<CreateService />} />
+
+                <Route path="/staff/profile" element={<PersonalDetailsStaff />} />
               </Routes>
             </main>
           </div>
@@ -141,6 +159,7 @@ const App: React.FC = () => {
                 <Route path="/booking" element={<Booking />} />
                 <Route path="/payment" element={<PaymentBooking />} />
                 <Route path="/order-payment" element={<Orderpayment />} />
+                <Route path="/services" element={<ServicesPage />} />
               </Routes>
             </main>
             <Footer />

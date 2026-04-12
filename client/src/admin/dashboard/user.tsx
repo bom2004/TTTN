@@ -19,7 +19,7 @@ interface UserForm {
     email: string;
     phone: string;
     password?: string;
-    role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
+    role: 'customer' | 'staff' | 'admin';
     totalSpent: string;
 }
 
@@ -185,9 +185,7 @@ const UserAdmin: React.FC = () => {
     const getRoleLabel = (role: string): string => {
         switch (role) {
             case 'admin': return 'Quản trị viên';
-            case 'staff': return 'Quản lý';
-            case 'receptionist': return 'Lễ tân';
-            case 'accountant': return 'Kế toán';
+            case 'staff': return 'Nhân viên';
             default: return 'Khách hàng';
         }
     };
@@ -196,8 +194,6 @@ const UserAdmin: React.FC = () => {
         switch (role) {
             case 'admin': return 'text-purple-700 bg-purple-50 dark:bg-purple-900/30 dark:text-purple-400';
             case 'staff': return 'text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400';
-            case 'receptionist': return 'text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400';
-            case 'accountant': return 'text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400';
             default: return 'text-[#4e5c71] bg-[#e5e9eb] dark:bg-slate-700 dark:text-slate-400';
         }
     };
@@ -328,10 +324,8 @@ const UserAdmin: React.FC = () => {
                                 >
                                     <option value="">Vai trò: Tất cả</option>
                                     <option value="customer">Khách hàng</option>
+                                    <option value="staff">Nhân viên</option>
                                     <option value="admin">Quản trị viên</option>
-                                    <option value="staff">Quản lý</option>
-                                    <option value="receptionist">Lễ tân</option>
-                                    <option value="accountant">Kế toán</option>
                                 </select>
                                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">admin_panel_settings</span>
                                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">expand_more</span>
@@ -395,38 +389,38 @@ const UserAdmin: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#e5e9eb] dark:divide-slate-700">
-                                    {paginatedUsers.map((user) => {
-                                        const levelInfo = getUserLevel((user as any).totalSpent || 0);
-                                        const statusInfo = getUserStatus(user);
+                                    {paginatedUsers.map((u) => {
+                                        const levelInfo = getUserLevel(u.totalSpent || 0);
+                                        const statusInfo = getUserStatus(u);
                                         return (
-                                            <tr key={user._id || user.id} className="hover:bg-[#f5f7f9] dark:hover:bg-slate-900/50 transition-colors">
+                                            <tr key={u._id || u.id} className="hover:bg-[#f5f7f9] dark:hover:bg-slate-900/50 transition-colors">
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-10 h-10 rounded-full bg-[#e5e9eb] dark:bg-slate-700 overflow-hidden">
-                                                            {user.avatar ? (
-                                                                <img src={user.avatar} className="w-full h-full object-cover" alt="" />
+                                                            {u.avatar ? (
+                                                                <img src={u.avatar} className="w-full h-full object-cover" alt="" />
                                                             ) : (
                                                                 <div className="w-full h-full flex items-center justify-center text-[#595c5e] dark:text-slate-400 font-bold">
-                                                                    {user.full_name.charAt(0).toUpperCase()}
+                                                                    {u.full_name.charAt(0).toUpperCase()}
                                                                 </div>
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <p className="text-sm font-bold text-[#2c2f31] dark:text-slate-100">{user.full_name}</p>
-                                                            <p className="text-xs text-[#747779] dark:text-slate-400">{levelInfo.label === 'Platinum' ? 'Khách hàng VIP' : (user.role === 'customer' ? 'Khách hàng' : getRoleLabel(user.role))}</p>
+                                                            <p className="text-sm font-bold text-[#2c2f31] dark:text-slate-100">{u.full_name}</p>
+                                                            <p className="text-xs text-[#747779] dark:text-slate-400">{levelInfo.label === 'Platinum' ? 'Khách hàng VIP' : (u.role === 'customer' ? 'Khách hàng' : getRoleLabel(u.role))}</p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-[#4e5c71] dark:text-slate-400 font-medium">{user.email}</td>
-                                                <td className="px-6 py-4 text-sm text-[#4e5c71] dark:text-slate-400">{user.phone || '—'}</td>
+                                                <td className="px-6 py-4 text-sm text-[#4e5c71] dark:text-slate-400 font-medium">{u.email}</td>
+                                                <td className="px-6 py-4 text-sm text-[#4e5c71] dark:text-slate-400">{u.phone || '—'}</td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${getRoleColor(user.role)}`}>
-                                                        {getRoleLabel(user.role)}
+                                                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${getRoleColor(u.role)}`}>
+                                                        {getRoleLabel(u.role)}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className="text-sm font-bold text-[#0050d4] dark:text-[#7b9cff] font-['Inter',sans-serif]">
-                                                        {new Intl.NumberFormat('vi-VN').format((user as any).totalSpent || 0)}₫
+                                                        {new Intl.NumberFormat('vi-VN').format(u.totalSpent || 0)}₫
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
@@ -439,7 +433,7 @@ const UserAdmin: React.FC = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-[#4e5c71] dark:text-slate-400 font-medium">
-                                                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : '—'}
+                                                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '—'}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusInfo.color}`}>
@@ -450,20 +444,20 @@ const UserAdmin: React.FC = () => {
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex gap-1 justify-end">
                                                         <button
-                                                            onClick={() => handleToggleLock(user)}
-                                                            className={`p-2 rounded-lg transition-all ${user.isActive !== false ? 'hover:bg-amber-50 text-[#747779] hover:text-amber-600 dark:hover:bg-amber-900/20' : 'hover:bg-green-50 text-[#747779] hover:text-green-600 dark:hover:bg-green-900/20'}`}
-                                                            title={user.isActive !== false ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                                                            onClick={() => handleToggleLock(u)}
+                                                            className={`p-2 rounded-lg transition-all ${u.isActive !== false ? 'hover:bg-amber-50 text-[#747779] hover:text-amber-600 dark:hover:bg-amber-900/20' : 'hover:bg-green-50 text-[#747779] hover:text-green-600 dark:hover:bg-green-900/20'}`}
+                                                            title={u.isActive !== false ? "Khóa tài khoản" : "Mở khóa tài khoản"}
                                                         >
-                                                            <span className="material-symbols-outlined text-xl">{user.isActive !== false ? "lock" : "lock_open"}</span>
+                                                            <span className="material-symbols-outlined text-xl">{u.isActive !== false ? "lock" : "lock_open"}</span>
                                                         </button>
                                                         <button
-                                                            onClick={() => openEditModal(user)}
+                                                            onClick={() => openEditModal(u)}
                                                             className="p-2 hover:bg-[#eef1f3] dark:hover:bg-slate-700 rounded-lg text-[#747779] hover:text-[#0050d4] transition-all"
                                                         >
                                                             <span className="material-symbols-outlined text-xl">edit</span>
                                                         </button>
                                                         <button
-                                                            onClick={() => { setDeleteTargetId(user._id || user.id); setDeleteTargetName(user.full_name); }}
+                                                            onClick={() => { setDeleteTargetId(u._id || u.id); setDeleteTargetName(u.full_name); }}
                                                             className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-[#747779] hover:text-red-600 transition-all"
                                                         >
                                                             <span className="material-symbols-outlined text-xl">delete</span>
@@ -583,9 +577,7 @@ const UserAdmin: React.FC = () => {
                                         onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                                     >
                                         <option value="customer">Khách hàng</option>
-                                        <option value="staff">Quản lý</option>
-                                        <option value="receptionist">Lễ tân</option>
-                                        <option value="accountant">Kế toán</option>
+                                        <option value="staff">Nhân viên</option>
                                         <option value="admin">Quản trị viên</option>
                                     </select>
                                 </div>

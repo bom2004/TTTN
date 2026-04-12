@@ -10,6 +10,7 @@ import { reducer as vnpayReducer } from './vnpay';
 import { reducer as searchReducer } from './search';
 import commentReducer from './comment';
 import { statsReducer } from './stats';
+import { serviceReducer } from './service';
 
 const rootReducer = combineReducers({
     auth: authReducer,
@@ -23,6 +24,7 @@ const rootReducer = combineReducers({
     search: searchReducer,
     comment: commentReducer,
     stats: statsReducer,
+    service: serviceReducer,
 });
 
 export default rootReducer;

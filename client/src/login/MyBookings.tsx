@@ -60,7 +60,7 @@ const ReviewModal: React.FC<{ booking: any; onClose: () => void; onSaved: () => 
                 </div>
                 <div className="p-8">
                     <div className="flex flex-col items-center mb-8">
-                        <p className="text-gray-500 font-bold mb-4 text-center">Trải nghiệm của bạn tại phòng<br/><span className="text-[#006ce4] font-black">{booking.roomTypeId?.name || booking.roomTypeInfo?.name}</span> thế nào?</p>
+                        <p className="text-gray-500 font-bold mb-4 text-center">Trải nghiệm của bạn tại phòng<br /><span className="text-[#006ce4] font-black">{booking.roomTypeId?.name || booking.roomTypeInfo?.name}</span> thế nào?</p>
                         <div className="flex gap-2">
                             {[1, 2, 3, 4, 5].map((s) => (
                                 <button
@@ -189,7 +189,7 @@ const DetailModal: React.FC<{ booking: any; onClose: () => void; isCancellable: 
                             <p className="font-semibold text-slate-900">
                                 {new Date(booking.checkInDate).toLocaleDateString('vi-VN')} — {new Date(booking.checkOutDate).toLocaleDateString('vi-VN')}
                             </p>
-                            <p className="text-sm text-slate-600 mt-1">{nights} đêm • {booking.roomQuantity} phòng</p>
+                            <p className="text-sm text-slate-600 mt-1">{nights} ngày • {booking.roomQuantity} phòng</p>
                             <p className="text-sm text-indigo-600 font-semibold mt-1">Check-in: {booking.checkInTime || '14:00'}</p>
                         </div>
                     </div>
@@ -259,7 +259,7 @@ const DetailModal: React.FC<{ booking: any; onClose: () => void; isCancellable: 
                         </div>
                         <div className="space-y-2.5">
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-600">Giá phòng ({nights} đêm)</span>
+                                <span className="text-slate-600">Giá phòng ({nights} ngày)</span>
                                 <span className="text-slate-900 font-medium">{new Intl.NumberFormat('vi-VN').format(booking.totalAmount)}₫</span>
                             </div>
                             {booking.discountAmount > 0 && (
@@ -268,10 +268,22 @@ const DetailModal: React.FC<{ booking: any; onClose: () => void; isCancellable: 
                                     <span className="font-semibold">-{new Intl.NumberFormat('vi-VN').format(booking.discountAmount)}₫</span>
                                 </div>
                             )}
+                            {booking.totalServiceAmount > 0 && (
+                                <div className="flex justify-between text-sm text-purple-600">
+                                    <span>🛎️ Dịch vụ đã dùng (gộp)</span>
+                                    <span className="font-semibold">+{new Intl.NumberFormat('vi-VN').format(booking.totalServiceAmount)}₫</span>
+                                </div>
+                            )}
                             <div className="flex justify-between pt-3 border-t border-slate-200">
-                                <span className="font-bold text-slate-900">Tổng tiền</span>
+                                <span className="font-bold text-slate-900">Tổng tiền phòng</span>
                                 <span className="font-bold text-xl text-indigo-600">{new Intl.NumberFormat('vi-VN').format(booking.finalAmount)}₫</span>
                             </div>
+                            {booking.totalServiceAmount > 0 && (
+                                <div className="flex justify-between mt-1 px-3 py-2 bg-purple-50 rounded-xl">
+                                    <span className="font-black text-slate-900 text-sm">Tổng phải trả (phòng + DV)</span>
+                                    <span className="font-black text-lg text-purple-700">{new Intl.NumberFormat('vi-VN').format(booking.finalAmount + booking.totalServiceAmount)}₫</span>
+                                </div>
+                            )}
                             {booking.paidAmount > 0 && booking.paymentStatus !== 'paid' && (
                                 <>
                                     <div className="flex justify-between text-sm text-blue-600">
@@ -294,6 +306,57 @@ const DetailModal: React.FC<{ booking: any; onClose: () => void; isCancellable: 
                             </span>
                         </div>
                     </div>
+
+                    {/* Service Orders Section */}
+                    {booking.serviceOrders && booking.serviceOrders.length > 0 && (
+                        <div className="bg-purple-50/60 rounded-2xl p-4 border border-purple-100">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-purple-600" style={{ fontSize: '14px' }}>room_service</span>
+                                </div>
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Dịch vụ đã đặt ({booking.serviceOrders.length} đơn)</span>
+                            </div>
+                            <div className="space-y-2">
+                                {booking.serviceOrders.map((order: any, idx: number) => {
+                                    const statusMap: Record<string, { label: string; color: string }> = {
+                                        pending: { label: 'Chờ xác nhận', color: 'bg-amber-100 text-amber-700' },
+                                        confirmed: { label: 'Đã xác nhận', color: 'bg-blue-100 text-blue-700' },
+                                        preparing: { label: 'Đang chuẩn bị', color: 'bg-indigo-100 text-indigo-700' },
+                                        delivering: { label: 'Đang giao', color: 'bg-cyan-100 text-cyan-700' },
+                                        completed: { label: 'Hoàn thành', color: 'bg-emerald-100 text-emerald-700' },
+                                        cancelled: { label: 'Đã hủy', color: 'bg-rose-100 text-rose-700' },
+                                    };
+                                    const sc = statusMap[order.status] || { label: order.status, color: 'bg-slate-100 text-slate-700' };
+                                    return (
+                                        <div key={idx} className="bg-white rounded-xl p-3 flex items-center justify-between gap-3 shadow-sm">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.color}`}>{sc.label}</span>
+                                                    <span className="text-xs text-slate-500">{order.items.length} món</span>
+                                                </div>
+                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                    {order.items.slice(0, 3).map((item: any, i: number) => (
+                                                        <span key={i} className="text-xs text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
+                                                            {item.serviceId?.name || 'Dịch vụ'} x{item.quantity}
+                                                        </span>
+                                                    ))}
+                                                    {order.items.length > 3 && (
+                                                        <span className="text-xs text-slate-400">+{order.items.length - 3} món</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className="font-bold text-purple-700 text-sm">{new Intl.NumberFormat('vi-VN').format(order.totalAmount)}₫</p>
+                                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                                    {order.paymentStatus === 'charged_to_room' ? '📋 Gộp vào phòng' : '💵 Trả riêng'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Action Buttons */}
                     <div className="flex gap-3 pt-2">
@@ -415,6 +478,14 @@ const MyBookings: React.FC = () => {
                 <div className="relative mb-10">
                     <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/5 via-purple-600/5 to-pink-600/5 rounded-3xl blur-3xl"></div>
                     <div className="relative">
+                        <nav className="flex items-center gap-2 pb-6 text-sm">
+                            <Link to="/" className="text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-lg">home</span>
+                                Trang chủ
+                            </Link>
+                            <span className="material-symbols-outlined text-gray-300 text-sm">chevron_right</span>
+                            <span className="text-indigo-600 font-bold">Đặt phòng của tôi</span>
+                        </nav>
                         <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
                             Đặt phòng của tôi
                         </h1>
@@ -483,8 +554,8 @@ const MyBookings: React.FC = () => {
                             key={opt.value}
                             onClick={() => setStatusFilter(opt.value)}
                             className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${statusFilter === opt.value
-                                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-200'
-                                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-200'
+                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                                 }`}
                         >
                             {opt.label}
@@ -565,7 +636,7 @@ const MyBookings: React.FC = () => {
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                                                                 </svg>
-                                                                <span>{nights} đêm</span>
+                                                                <span>{nights} ngày</span>
                                                             </div>
                                                             <div className="flex items-center gap-1.5">
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

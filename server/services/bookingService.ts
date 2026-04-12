@@ -247,6 +247,32 @@ export const adminUpdateBooking = async (
                 });
             });
         }
+        
+        // ĐỒNG BỘ TRẠNG THÁI PHÒNG (Room Model)
+        if (status !== oldStatus) {
+            const details = await bookingDetailModel.find({ bookingId: booking._id }).session(session as any);
+            const roomIds = details.map(d => d.roomId);
+            
+            if (roomIds.length > 0) {
+                let targetRoomStatus = '';
+                if (status === 'checked_in') targetRoomStatus = 'occupied';
+                else if (['checked_out', 'completed', 'cancelled'].includes(status)) targetRoomStatus = 'available';
+
+                if (targetRoomStatus) {
+                    await roomModel.updateMany(
+                        { _id: { $in: roomIds }, status: { $ne: 'maintenance' } },
+                        { status: targetRoomStatus }
+                    ).session(session as any);
+
+                    // Notify via socket (để FE cập nhật sơ đồ phòng)
+                    const { emitToAll } = await import('../socket.ts');
+                    roomIds.forEach(id => {
+                        emitToAll('room_status_changed', { id: String(id), status: targetRoomStatus });
+                    });
+                }
+            }
+        }
+        
         booking.status = status;
     }
 

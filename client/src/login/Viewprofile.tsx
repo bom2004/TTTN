@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAppDispatch, useAppSelector } from '../lib/redux/store';
 import { selectAuthUser, selectAuthLoading, sendOTPThunk, updateProfileThunk } from '../lib/redux/reducers/auth';
@@ -113,6 +113,17 @@ const ViewProfile: React.FC = () => {
                 <svg className="absolute bottom-0 left-0 w-full h-48" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
                     <path fill="rgba(59, 130, 246, 0.1)" fillOpacity="1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
                 </svg>
+            </div>
+
+            <div className="w-full max-w-6xl mx-auto relative z-10">
+                <nav className="flex items-center gap-2 pb-6 text-sm">
+                    <Link to="/" className="text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1">
+                        <span className="material-symbols-outlined text-lg">home</span>
+                        Trang chủ
+                    </Link>
+                    <span className="material-symbols-outlined text-gray-300 text-sm">chevron_right</span>
+                    <span className="text-indigo-600 font-bold">Hồ sơ cá nhân</span>
+                </nav>
             </div>
 
             <main className="w-full max-w-6xl mx-auto relative z-10 flex flex-col lg:flex-row gap-8">

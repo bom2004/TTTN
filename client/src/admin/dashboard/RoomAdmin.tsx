@@ -24,6 +24,7 @@ const RoomAdmin: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [filterRoomTypeId, setFilterRoomTypeId] = useState<string>('All');
     const [filterFloor, setFilterFloor] = useState<string>('All');
+    const [filterStatus, setFilterStatus] = useState<string>('All');
 
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
@@ -249,6 +250,9 @@ const RoomAdmin: React.FC = () => {
         const currentRoomFloor = getFloorFromRoomNumber(r.roomNumber);
         const matchesFloor = filterFloor === 'All' || currentRoomFloor.toString() === filterFloor;
 
+        const effectiveStatus = getEffectiveStatus(r._id, r.status);
+        const matchesStatus = filterStatus === 'All' || effectiveStatus === filterStatus;
+
 
         let isAvailableInDateRange = true;
         if (startDate && endDate) {
@@ -263,7 +267,7 @@ const RoomAdmin: React.FC = () => {
             isAvailableInDateRange = !hasOverlap;
         }
 
-        return matchesSearch && matchesType && matchesFloor && isAvailableInDateRange;
+        return matchesSearch && matchesType && matchesFloor && matchesStatus && isAvailableInDateRange;
     }).sort((a: any, b: any) => String(a.roomNumber || "").localeCompare(String(b.roomNumber || ""), undefined, { numeric: true, sensitivity: 'base' }));
 
     const totalPages = Math.ceil(filteredRooms.length / ITEMS_PER_PAGE);
@@ -273,6 +277,7 @@ const RoomAdmin: React.FC = () => {
         setSearchTerm('');
         setFilterRoomTypeId('All');
         setFilterFloor('All');
+        setFilterStatus('All');
 
         setStartDate('');
         setEndDate('');
@@ -339,10 +344,6 @@ const RoomAdmin: React.FC = () => {
                         <p className="text-[#595c5e] dark:text-slate-400 mt-1 font-medium font-['Inter',sans-serif]">Theo dõi và cập nhật trạng thái phòng thực tế.</p>
                     </div>
                     <div className="flex gap-3">
-                        <button className="flex items-center gap-2 px-5 py-2.5 bg-[#eef1f3] dark:bg-slate-800 hover:bg-[#e5e9eb] dark:hover:bg-slate-700 text-[#2c2f31] dark:text-slate-200 font-semibold rounded-xl transition-all">
-                            <span className="material-symbols-outlined text-xl">file_download</span>
-                            Xuất báo cáo
-                        </button>
                         <button
                             onClick={() => { resetForm(); setIsModalOpen(true); }}
                             className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-[#0050d4] to-[#0046bb] text-white font-bold rounded-xl shadow-lg shadow-[#0050d4]/20 hover:scale-[1.02] transition-all"
@@ -403,38 +404,31 @@ const RoomAdmin: React.FC = () => {
 
                 {/* Filters & Main View */}
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100/50 dark:border-slate-700">
-                    <div className="space-y-4 mb-8">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-6 mb-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {/* Search Input */}
-                            <div className="relative w-full md:max-w-md">
-                                <input
-                                    type="text"
-                                    placeholder="Tìm số phòng hoặc loại phòng..."
-                                    value={searchTerm}
-                                    onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                                    className="w-full pl-11 pr-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium focus:outline-none focus:border-[#0050d4] transition-all text-[#2c2f31] dark:text-slate-100 placeholder-[#abadaf]"
-                                />
-                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#abadaf] text-[20px]">search</span>
+                            <div className="lg:col-span-2">
+                                <label className="block text-[10px] font-black text-[#abadaf] uppercase tracking-widest mb-2 ml-1">Tìm kiếm phòng</label>
+                                <div className="relative">
+                                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#abadaf] text-[20px]">search</span>
+                                    <input
+                                        type="text"
+                                        placeholder="Tìm số phòng hoặc loại phòng..."
+                                        value={searchTerm}
+                                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                        className="w-full pl-11 pr-4 py-3 bg-[#f8fafc] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-100 focus:ring-4 focus:ring-[#0050d4]/5 transition-all outline-none"
+                                    />
+                                </div>
                             </div>
 
-                            <button
-                                onClick={clearFilters}
-                                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
-                            >
-                                <span className="material-symbols-outlined text-lg">filter_list_off</span>
-                                Xóa tất cả bộ lọc
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             {/* Floor Filter */}
-                            <div className="relative">
-                                <label className="block text-[10px] font-black text-[#abadaf] uppercase tracking-widest mb-1.5 ml-1">Vị trí tầng</label>
+                            <div className="lg:col-span-1">
+                                <label className="block text-[10px] font-black text-[#abadaf] uppercase tracking-widest mb-2 ml-1">Vị trí tầng</label>
                                 <div className="relative">
                                     <select
                                         value={filterFloor}
                                         onChange={(e) => { setFilterFloor(e.target.value); setCurrentPage(1); }}
-                                        className="w-full appearance-none pl-11 pr-10 py-2.5 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-200 focus:ring-2 focus:ring-[#0050d4]/20 cursor-pointer transition-all"
+                                        className="w-full appearance-none pl-11 pr-10 py-3 bg-[#f8fafc] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-200 cursor-pointer outline-none transition-all"
                                     >
                                         <option value="All">Tất cả tầng</option>
                                         {availableFloors.map(floor => (
@@ -449,14 +443,35 @@ const RoomAdmin: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* Status Filter */}
+                            <div className="lg:col-span-1">
+                                <label className="block text-[10px] font-black text-[#abadaf] uppercase tracking-widest mb-2 ml-1">Trạng thái thực tế</label>
+                                <div className="relative">
+                                    <select
+                                        value={filterStatus}
+                                        onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                                        className="w-full appearance-none pl-11 pr-10 py-3 bg-[#f8fafc] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-200 cursor-pointer outline-none transition-all"
+                                    >
+                                        <option value="All">Tất cả trạng thái</option>
+                                        <option value="available">Sẵn sàng (Trống)</option>
+                                        <option value="occupied">Đang ở (Có khách)</option>
+                                        <option value="maintenance">Bảo trì (Sửa chữa)</option>
+                                    </select>
+                                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#747779] text-xl pointer-events-none">info</span>
+                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747779] text-xl pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col lg:flex-row items-end gap-6 border-t border-slate-100 dark:border-slate-700 pt-6">
                             {/* Room Type Filter */}
-                            <div className="relative">
-                                <label className="block text-[10px] font-black text-[#abadaf] uppercase tracking-widest mb-1.5 ml-1">Loại phòng</label>
+                            <div className="w-full lg:w-1/4">
+                                <label className="block text-[10px] font-black text-[#abadaf] uppercase tracking-widest mb-2 ml-1">Loại phòng</label>
                                 <div className="relative">
                                     <select
                                         value={filterRoomTypeId}
                                         onChange={(e) => { setFilterRoomTypeId(e.target.value); setCurrentPage(1); }}
-                                        className="w-full appearance-none pl-11 pr-10 py-2.5 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-200 focus:ring-2 focus:ring-[#0050d4]/20 cursor-pointer transition-all"
+                                        className="w-full appearance-none pl-11 pr-10 py-3 bg-[#f8fafc] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-200 cursor-pointer outline-none transition-all"
                                     >
                                         <option value="All">Tất cả loại phòng</option>
                                         {roomTypes.map(type => (
@@ -468,31 +483,39 @@ const RoomAdmin: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Date Overlap Check (Mock appearance for the box) */}
-                            <div className="lg:col-span-2">
-                                <label className="block text-[10px] font-black text-[#abadaf] uppercase tracking-widest mb-1.5 ml-1">Check-in / Check-out (Kiểm tra trống)</label>
-                                <div className="flex items-center gap-2">
+                            {/* Date Overlap Check */}
+                            <div className="flex-1 w-full">
+                                <label className="block text-[10px] font-black text-[#abadaf] uppercase tracking-widest mb-2 ml-1">Kiểm tra trống từ - đến ngày</label>
+                                <div className="flex items-center gap-3">
                                     <div className="relative flex-1">
+                                        <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#abadaf] text-xl">calendar_today</span>
                                         <input
                                             type="date"
-                                            className="w-full pl-10 pr-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 outline-none focus:border-[#0050d4] transition-all"
+                                            className="w-full pl-11 pr-4 py-3 bg-[#f8fafc] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-100 outline-none focus:border-[#0050d4] transition-all"
                                             value={startDate}
                                             onChange={(e) => setStartDate(e.target.value)}
                                         />
-                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">calendar_today</span>
                                     </div>
                                     <span className="text-[#abadaf] font-bold">→</span>
                                     <div className="relative flex-1">
+                                        <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#abadaf] text-xl">event</span>
                                         <input
                                             type="date"
-                                            className="w-full pl-10 pr-4 py-2.5 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-100 outline-none focus:border-[#0050d4] transition-all"
+                                            className="w-full pl-11 pr-4 py-3 bg-[#f8fafc] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-[#2c2f31] dark:text-slate-100 outline-none focus:border-[#0050d4] transition-all"
                                             value={endDate}
                                             onChange={(e) => setEndDate(e.target.value)}
                                         />
-                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">event</span>
                                     </div>
                                 </div>
                             </div>
+
+                            <button
+                                onClick={clearFilters}
+                                className="px-6 py-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-2xl font-black text-sm flex items-center gap-2 whitespace-nowrap hover:bg-rose-100 transition-all shadow-sm"
+                            >
+                                <span className="material-symbols-outlined text-lg">filter_alt_off</span>
+                                Xóa tất cả lọc
+                            </button>
                         </div>
                         
                         {(startDate || endDate) && (

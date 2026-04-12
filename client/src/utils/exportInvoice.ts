@@ -3,8 +3,9 @@
  * Không cần cài thêm thư viện bên ngoài.
  * 
  * @param booking - Object booking chứa đầy đủ thông tin đơn đặt phòng
+ * @param staffName - Tên nhân viên thực hiện xuất hóa đơn
  */
-export const exportInvoice = (booking: any): void => {
+export const exportInvoice = (booking: any, staffName?: string): void => {
     if (!booking) return;
 
     const roomTypeName = booking.roomTypeId?.name || booking.roomTypeInfo?.name || 'N/A';
@@ -305,7 +306,7 @@ export const exportInvoice = (booking: any): void => {
                 <div class="info-content">
                     <p>Mã đơn: <strong>#${booking._id.slice(-8).toUpperCase()}</strong></p>
                     <p>Ngày đặt: ${createdAt}</p>
-                    <p>Nhân viên: ${booking.employeeName || 'Hệ thống'}</p>
+                    <p>Nhân viên: ${staffName || booking.employeeName || 'Hệ thống'}</p>
                 </div>
             </div>
             <div class="info-box">
@@ -336,14 +337,16 @@ export const exportInvoice = (booking: any): void => {
                         <td class="text-right">${fmt(booking.roomTypeId?.basePrice || booking.roomTypeInfo?.basePrice || 0)}₫</td>
                         <td class="text-right">${fmt(booking.totalAmount)}₫</td>
                     </tr>
-                    ${booking.services && booking.services.length > 0 ? booking.services.map((service: any) => `
-                    <tr>
-                        <td>Dịch vụ: ${service.name}</td>
-                        <td class="text-right">${service.quantity}</td>
-                        <td class="text-right">${fmt(service.price)}₫</td>
-                        <td class="text-right">${fmt(service.quantity * service.price)}₫</td>
-                    </tr>
-                    `).join('') : ''}
+                    ${booking.serviceOrders && booking.serviceOrders.length > 0 ? booking.serviceOrders.map((order: any) => 
+                        order.items.map((item: any) => `
+                        <tr>
+                            <td>Dịch vụ: ${item.serviceId?.name || 'N/A'}</td>
+                            <td class="text-right">${item.quantity}</td>
+                            <td class="text-right">${fmt(item.priceAtOrder)}₫</td>
+                            <td class="text-right">${fmt(item.quantity * item.priceAtOrder)}₫</td>
+                        </tr>
+                        `).join('')
+                    ).join('') : ''}
                     ${booking.promotionCode ? `
                     <tr>
                         <td colspan="3" class="text-right">Mã giảm giá: ${booking.promotionCode}</td>
@@ -358,9 +361,14 @@ export const exportInvoice = (booking: any): void => {
         <div class="summary-section">
             <div class="summary-box">
                 <div class="summary-line">
-                    <span>Tổng tiền phòng & dịch vụ:</span>
+                    <span>Tổng tiền phòng:</span>
                     <span>${fmt(booking.totalAmount)}₫</span>
                 </div>
+                ${booking.totalServiceAmount > 0 ? `
+                <div class="summary-line">
+                    <span>Tổng tiền dịch vụ:</span>
+                    <span>${fmt(booking.totalServiceAmount)}₫</span>
+                </div>` : ''}
                 ${booking.discountAmount > 0 ? `
                 <div class="summary-line">
                     <span>Chiết khấu / Khuyến mãi:</span>
@@ -368,7 +376,7 @@ export const exportInvoice = (booking: any): void => {
                 </div>` : ''}
                 <div class="summary-line total">
                     <span>TỔNG CỘNG:</span>
-                    <span>${fmt(booking.finalAmount)}₫</span>
+                    <span>${fmt(booking.finalAmount + (booking.totalServiceAmount || 0))}₫</span>
                 </div>
                 <div class="summary-line paid">
                     <span>Đã thanh toán:</span>
@@ -376,7 +384,7 @@ export const exportInvoice = (booking: any): void => {
                 </div>
                 <div class="summary-line remaining">
                     <span>Còn lại:</span>
-                    <span>${fmt(Math.max(0, booking.finalAmount - (booking.paidAmount || 0)))}₫</span>
+                    <span>${fmt(Math.max(0, (booking.finalAmount + (booking.totalServiceAmount || 0)) - (booking.paidAmount || 0)))}₫</span>
                 </div>
                 <div style="text-align: right;">
                     <span class="status-badge ${booking.paymentStatus === 'paid' ? 'status-paid' :

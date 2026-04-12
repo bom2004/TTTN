@@ -20,7 +20,7 @@ interface StaffForm {
     email: string;
     phone: string;
     password?: string;
-    role: 'staff' | 'admin' | 'receptionist' | 'accountant';
+    role: 'staff' | 'admin';
     salary_base: number;
 }
 
@@ -31,7 +31,7 @@ const StaffAdmin: React.FC = () => {
     const onlineUserIds = useAppSelector(selectOnlineUserIds);
 
     // Filter only staff members
-    const staffMembers = allUsers.filter(u => ['staff', 'receptionist', 'accountant'].includes(u.role));
+    const staffMembers = allUsers.filter(u => ['staff'].includes(u.role));
 
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [roleFilter, setRoleFilter] = useState<string>('');
@@ -147,9 +147,8 @@ const StaffAdmin: React.FC = () => {
 
     const getRoleLabel = (role: string): string => {
         switch (role) {
-            case 'staff': return 'Quản lý';
-            case 'receptionist': return 'Lễ tân';
-            case 'accountant': return 'Kế toán';
+            case 'staff': return 'Nhân viên';
+            case 'admin': return 'Quản trị viên';
             default: return role;
         }
     };
@@ -157,8 +156,7 @@ const StaffAdmin: React.FC = () => {
     const getRoleColor = (role: string): string => {
         switch (role) {
             case 'staff': return 'text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400';
-            case 'receptionist': return 'text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400';
-            case 'accountant': return 'text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400';
+            case 'admin': return 'text-purple-700 bg-purple-50 dark:bg-purple-900/30 dark:text-purple-400';
             default: return 'text-[#4e5c71] bg-[#e5e9eb] dark:bg-slate-700 dark:text-slate-400';
         }
     };
@@ -301,9 +299,8 @@ const StaffAdmin: React.FC = () => {
                                     className="w-full appearance-none pl-10 pr-10 py-2 border border-[#d9dde0] dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium text-[#2c2f31] dark:text-slate-200 focus:ring-2 focus:ring-[#0050d4]/20 cursor-pointer transition-all"
                                 >
                                     <option value="">Vai trò: Tất cả</option>
-                                    <option value="staff">Vị trí: Quản lý</option>
-                                    <option value="receptionist">Vị trí: Lễ tân</option>
-                                    <option value="accountant">Vị trí: Kế toán</option>
+                                    <option value="staff">Vị trí: Nhân viên</option>
+                                    <option value="admin">Vị trí: Quản trị viên</option>
                                 </select>
                                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">group_work</span>
                                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#747779] text-lg pointer-events-none">expand_more</span>
@@ -510,9 +507,8 @@ const StaffAdmin: React.FC = () => {
                                             value={formData.role}
                                             onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                                         >
-                                            <option value="staff">Quản lý</option>
-                                            <option value="receptionist">Lễ tân</option>
-                                            <option value="accountant">Kế toán</option>
+                                            <option value="staff">Nhân viên</option>
+                                            <option value="admin">Quản trị viên</option>
                                         </select>
                                     </div>
                                 </div>

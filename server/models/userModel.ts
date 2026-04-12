@@ -5,7 +5,7 @@ export interface IUser extends Document {
     email: string;
     phone?: string;
     password?: string;
-    role: 'customer' | 'staff' | 'admin' | 'hotelOwner' | 'receptionist' | 'accountant';
+    role: 'customer' | 'staff' | 'admin';
     avatar: string;
     totalSpent: number;
     membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: false },
     role: { 
         type: String, 
-        enum: ['customer', 'staff', 'admin', 'hotelOwner', 'receptionist', 'accountant'],
+        enum: ['customer', 'staff', 'admin'],
         default: 'customer' 
     },
     avatar: { type: String, default: "" },

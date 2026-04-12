@@ -11,6 +11,7 @@ export interface AuthUser {
     totalSpent: number;
     membershipLevel: 'silver' | 'gold' | 'diamond' | 'platinum';
     token?: string;
+    createdAt?: string;
 }
 
 export interface AuthState {

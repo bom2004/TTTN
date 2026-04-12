@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAppDispatch, useAppSelector } from '../../lib/redux/store';
 import { selectAuthUser, selectAuthToken } from '../../lib/redux/reducers/auth';
@@ -45,9 +45,8 @@ const Promotions: React.FC = () => {
             if (hasUsed || isLimitReached) return false;
         }
         
-        // Nếu chưa đăng nhập, chỉ hiện các mã phổ thông (Genius level = 0)
-        // Nếu đã đăng nhập, hiện tất cả (vì đã lọc used/limit ở trên)
-        return token ? true : promo.minGeniusLevel === 0;
+        // Nếu chưa đăng nhập, show tất cả để khách hàng thấy (có xử lý UI làm mờ)
+        return true;
     });
 
     useEffect(() => {
@@ -195,18 +194,11 @@ const Promotions: React.FC = () => {
 
     return (
         <div className="bg-[#f8f6f6] dark:bg-[#221610] text-slate-900 dark:text-slate-100 min-h-screen font-sans">
+
+
             {/* Hero Section */}
             <section className="bg-[#003580] text-white py-12 px-4 md:px-10 lg:px-40">
                 <div className="max-w-[1200px] mx-auto">
-                    <nav aria-label="Breadcrumb" className="flex text-sm mb-4 opacity-80">
-                        <ol className="flex list-none p-0">
-                            <li className="flex items-center">
-                                <span className="hover:underline cursor-pointer" onClick={() => navigate('/')}>Trang chủ</span>
-                                <span className="material-symbols-outlined text-sm mx-2">chevron_right</span>
-                            </li>
-                            <li>Ưu đãi</li>
-                        </ol>
-                    </nav>
                     <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">Ưu đãi và Khuyến mãi đặc biệt</h2>
                     <p className="text-lg md:text-xl text-blue-100 max-w-2xl">Từ những kỳ nghỉ ngắn ngày đến những chuyến đi xa, chúng tôi luôn có những ưu đãi tốt nhất dành cho bạn.</p>
                 </div>
@@ -214,6 +206,15 @@ const Promotions: React.FC = () => {
 
             {/* Main Content */}
             <main className="max-w-[1200px] mx-auto px-4 md:px-10 lg:px-0 py-8 space-y-12">
+                {/* Breadcrumb Section */}
+                <nav className="flex items-center gap-2 pb-6 text-sm">
+                    <Link to="/" className="text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1">
+                        <span className="material-symbols-outlined text-lg">home</span>
+                        Trang chủ
+                    </Link>
+                    <span className="material-symbols-outlined text-gray-300 text-sm">chevron_right</span>
+                    <span className="text-indigo-600 font-bold">Khuyến mãi</span>
+                </nav>
 
                 {/* Khuyến mãi từ DB */}
                 <section>
@@ -233,59 +234,31 @@ const Promotions: React.FC = () => {
                         )}
                     </div>
 
-                    {renderPromotionsContent()}
-                </section>
-
-                {/* Member Only Deals */}
-                {!token && (
-                    <section className="bg-[#ec5b13]/5 dark:bg-[#ec5b13]/10 rounded-2xl p-6 md:p-10 border border-[#ec5b13]/20">
-                        <div className="flex flex-col md:flex-row gap-8 items-center">
-                            <div className="flex-1 space-y-4">
-                                <div className="inline-flex items-center gap-2 bg-[#ec5b13] text-white px-3 py-1 rounded-full text-xs font-bold">
-                                    <span className="material-symbols-outlined text-xs">grade</span>
-                                    QUYỀN LỢI THÀNH VIÊN
-                                </div>
-                                <h3 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Giảm thêm 10% cho thành viên mới</h3>
-                                <p className="text-slate-700 dark:text-slate-300">Đăng nhập để xem giá dành riêng cho thành viên và nhận các ưu đãi nâng cấp phòng miễn phí tại hàng ngàn chỗ nghỉ trên toàn thế giới.</p>
-                                <div className="flex flex-wrap gap-4 pt-2">
-                                    <button className="bg-[#ec5b13] text-white px-6 py-3 rounded-lg font-bold shadow-lg hover:bg-[#ec5b13]/90" onClick={() => navigate('/login')}>Đăng nhập ngay</button>
-                                    <button className="border border-[#ec5b13] text-[#ec5b13] px-6 py-3 rounded-lg font-bold hover:bg-[#ec5b13]/10" onClick={() => navigate('/register')}>Đăng ký thành viên</button>
-                                </div>
+                    {token ? (
+                        renderPromotionsContent()
+                    ) : (
+                        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl shadow-sm border border-gray-100 text-center animate-fade-in relative overflow-hidden">
+                            <div className="absolute top-0 w-full h-2 bg-gradient-to-r from-orange-400 to-[#ec5b13]"></div>
+                            <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6">
+                                <span className="material-symbols-outlined text-5xl text-[#ec5b13]">lock</span>
                             </div>
-                            <div className="w-full md:w-1/3 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl border border-[#ec5b13]/10">
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-full bg-[#ec5b13]/20 flex items-center justify-center text-[#ec5b13]">
-                                            <span className="material-symbols-outlined">local_offer</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-sm">Giảm giá trực tiếp</p>
-                                            <p className="text-xs text-slate-500">Áp dụng ngay khi thanh toán</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-full bg-[#ec5b13]/20 flex items-center justify-center text-[#ec5b13]">
-                                            <span className="material-symbols-outlined">upgrade</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-sm">Nâng cấp hạng phòng</p>
-                                            <p className="text-xs text-slate-500">Tại các đối tác chọn lọc</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-full bg-[#ec5b13]/20 flex items-center justify-center text-[#ec5b13]">
-                                            <span className="material-symbols-outlined">restaurant</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-sm">Bữa sáng miễn phí</p>
-                                            <p className="text-xs text-slate-500">Khởi đầu ngày mới tràn năng lượng</p>
-                                        </div>
-                                    </div>
-                                </div>
+                            <h2 className="text-2xl font-black text-gray-800 mb-2">Chưa đăng nhập</h2>
+                            <p className="text-gray-500 max-w-md mx-auto mb-8 font-medium">
+                                Kho ưu đãi và mã giảm giá đặc quyền chỉ dành riêng cho thành viên của QuickStay. Vui lòng đăng nhập để xem!
+                            </p>
+                            <div className="flex flex-wrap items-center justify-center gap-4">
+                                <button onClick={() => navigate('/login')} className="px-8 py-3.5 bg-[#ec5b13] text-white font-bold rounded-xl shadow-lg shadow-orange-200 hover:bg-[#d64f0b] transition-all active:scale-95">
+                                    Đăng nhập ngay
+                                </button>
+                                <button onClick={() => navigate('/register')} className="px-8 py-3.5 bg-white text-[#ec5b13] font-bold rounded-xl border-2 border-orange-100 hover:bg-orange-50 transition-all active:scale-95">
+                                    Đăng ký thành viên
+                                </button>
                             </div>
                         </div>
-                    </section>
-                )}
+                    )}
+                </section>
+
+
             </main>
         </div>
     );

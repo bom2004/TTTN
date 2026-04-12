@@ -67,7 +67,7 @@ const BookingStaff: React.FC = () => {
 
         const overlappingBookings = bookingList.filter(b => {
             if (b._id === booking._id) return false;
-            if (['cancelled', 'pending'].includes(b.status)) return false;
+            if (['cancelled', 'pending', 'completed', 'checked_out'].includes(b.status)) return false;
 
             const bIn = new Date(b.checkInDate).getTime();
             const bOut = new Date(b.checkOutDate).getTime();
@@ -91,9 +91,12 @@ const BookingStaff: React.FC = () => {
         const rtId = String(booking.roomTypeId?._id || booking.roomTypeId);
         return roomList.filter((r: any) => {
             const roomTypeMatch = String(r.roomTypeId?._id || r.roomTypeId) === rtId;
-            const isAvailableStatus = r.status === 'available' || r.status === 'Sẵn sàng';
+            // Chỉ loại bỏ nếu phòng đang bảo trì
+            const isNotMaintenance = r.status !== 'maintenance';
+            // Không được trùng với các đơn đặt phòng khác đã gán
             const isNotAssigned = !assignedRoomIds.has(String(r._id));
-            return roomTypeMatch && isAvailableStatus && isNotAssigned;
+            
+            return roomTypeMatch && isNotMaintenance && isNotAssigned;
         });
     };
 
@@ -164,8 +167,8 @@ const BookingStaff: React.FC = () => {
         switch (status) {
             case 'pending': return { label: 'Chờ duyệt', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', dot: 'bg-amber-500' };
             case 'confirmed': return { label: 'Đã xác nhận', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', dot: 'bg-blue-500' };
-            case 'checked_in': return { label: 'Đã Check-in', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', dot: 'bg-indigo-500' };
-            case 'checked_out': return { label: 'Đã Check-out', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', dot: 'bg-purple-500' };
+            case 'checked_in': return { label: 'Đã Nhận phòng', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', dot: 'bg-indigo-500' };
+            case 'checked_out': return { label: 'Đã Trả phòng', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', dot: 'bg-purple-500' };
             case 'completed': return { label: 'Hoàn thành', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', dot: 'bg-emerald-500' };
             case 'cancelled': return { label: 'Đã hủy', color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400', dot: 'bg-rose-500' };
             default: return { label: status, color: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-400', dot: 'bg-gray-500' };
@@ -265,8 +268,8 @@ const BookingStaff: React.FC = () => {
                                     <option value="all">Trạng thái: Tất cả</option>
                                     <option value="pending">Chờ duyệt</option>
                                     <option value="confirmed">Đã xác nhận</option>
-                                    <option value="checked_in">Đã Check-in</option>
-                                    <option value="checked_out">Đã Check-out</option>
+                                    <option value="checked_in">Đã nhận phòng</option>
+                                    <option value="checked_out">Đã trả phòng</option>
                                     <option value="completed">Đã hoàn thành</option>
                                     <option value="cancelled">Đã hủy bỏ</option>
                                 </select>
@@ -390,7 +393,7 @@ const BookingStaff: React.FC = () => {
                                                 <td className="px-6 py-5">
                                                     <div>
                                                         <p className="font-black text-[#0050d4] dark:text-blue-400">
-                                                            {new Intl.NumberFormat('vi-VN').format(booking.finalAmount)}₫
+                                                            {new Intl.NumberFormat('vi-VN').format(booking.finalAmount + (booking.totalServiceAmount || 0))}₫
                                                         </p>
                                                         <span className={`text-[10px] font-bold uppercase tracking-tight ${payStatus.color}`}>
                                                             {payStatus.label}

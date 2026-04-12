@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Room } from '../../lib/redux/reducers/room/types';
 import Viewdetails from '../booking/Viewdetails';
 import { useAppDispatch, useAppSelector } from '../../lib/redux/store';
@@ -126,18 +126,11 @@ const SearchPage: React.FC = () => {
 
     return (
         <div className="bg-[#f5f5f5] min-h-screen font-sans">
+
+
             {/* Phần tiêu đề Trang (Hero Section) - Cố định ở trên cùng */}
             <section className="bg-[#003580] text-white pt-8 pb-4 px-4 md:px-10">
                 <div className="max-w-7xl mx-auto">
-                    <nav aria-label="Breadcrumb" className="flex text-sm mb-4 opacity-80">
-                        <ol className="flex list-none p-0">
-                            <li className="flex items-center">
-                                <span className="hover:underline cursor-pointer" onClick={() => navigate('/')}>Trang chủ</span>
-                                <span className="material-symbols-outlined text-sm mx-2">chevron_right</span>
-                            </li>
-                            <li>Phòng</li>
-                        </ol>
-                    </nav>
                     <h1 className="text-3xl md:text-4xl font-black mb-2">Tìm kiếm chỗ nghỉ</h1>
                     <p className="text-blue-100 font-medium">Tìm phòng phù hợp với bạn để có kỳ nghỉ tuyệt vời !!!</p>
                 </div>
@@ -274,6 +267,16 @@ const SearchPage: React.FC = () => {
             </div>
 
             <main className="max-w-7xl mx-auto px-4 md:px-10 py-10">
+                {/* Breadcrumb Section */}
+                <nav className="flex items-center gap-2 pb-6 text-sm">
+                    <Link to="/" className="text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1">
+                        <span className="material-symbols-outlined text-lg">home</span>
+                        Trang chủ
+                    </Link>
+                    <span className="material-symbols-outlined text-gray-300 text-sm">chevron_right</span>
+                    <span className="text-indigo-600 font-bold">Phòng</span>
+                </nav>
+
                 <div className="w-full">
                     {/* Nội dung kết quả tìm kiếm (Results Content) */}
                     <div className="w-full">

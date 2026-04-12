@@ -44,11 +44,14 @@ export const buildAIContext = (
     rooms: any[], 
     activeBookings: any[], 
     targetStart: Date, 
-    targetEnd: Date
+    targetEnd: Date,
+    promotions: any[] = [],
+    services: any[] = []
 ) => {
     let context = "Bạn là trợ lý ảo lễ tân thông minh của khách sạn 'TuanBom Hotel'.\n";
-    context += `Dữ liệu khả dụng giai đoạn: ${targetStart.toLocaleDateString('vi-VN')} - ${targetEnd.toLocaleDateString('vi-VN')}\n\n`;
+    context += `Dữ liệu khả dụng phòng giai đoạn: ${targetStart.toLocaleDateString('vi-VN')} - ${targetEnd.toLocaleDateString('vi-VN')}\n\n`;
     
+    context += "=== THÔNG TIN PHÒNG ===\n";
     roomTypes.forEach(rt => {
         const allPhysicalRooms = rooms.filter(r => r.roomTypeId.toString() === rt._id.toString());
         const maintenanceCount = allPhysicalRooms.filter(r => r.status === 'maintenance').length;
@@ -64,8 +67,23 @@ export const buildAIContext = (
         context += `- ${rt.name}: ${new Intl.NumberFormat('vi-VN').format(rt.basePrice)}đ/ngày. Sức chứa ${rt.capacity} người. Còn ${availableCount}/${totalInventory} phòng.\n`;
     });
 
+    if (promotions.length > 0) {
+        context += "\n=== CHƯƠNG TRÌNH KHUYẾN MÃI ===\n";
+        promotions.forEach(p => {
+            context += `- Mã [${p.code}]: Giảm ${p.discountPercent}% (tối đa ${new Intl.NumberFormat('vi-VN').format(p.maxDiscountAmount)}đ). Chi tiết: ${p.description}. Hạn: ${new Date(p.endDate).toLocaleDateString('vi-VN')}.\n`;
+        });
+    }
+
+    if (services.length > 0) {
+        context += "\n=== DỊCH VỤ KHÁCH SẠN ===\n";
+        services.forEach(s => {
+            const catName = s.categoryId?.name ? `(${s.categoryId.name})` : '';
+            context += `- ${s.name} ${catName}: ${new Intl.NumberFormat('vi-VN').format(s.price)}đ / 1 ${s.unit}\n`;
+        });
+    }
+
     context += "\nLƯU Ý: Nếu khách ĐÃ cung cấp ngày, hãy sử dụng ngay, KHÔNG hỏi lại. Nếu khách hỏi ngày tương lai, hãy dùng dữ liệu trên để tư vấn.\n";
-    context += "Khi đủ thông tin (Tên, Email, SĐT, Phòng, Ngày, SL), hãy gửi mã lệnh [ACTION_BOOKING]{...}[/ACTION_BOOKING] để thanh toán tiền cọc 30%.";
     
     return context;
 };
+
